@@ -1,0 +1,77 @@
+'use client'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { BottomNav, Card, StatCard, PrimaryBtn } from '@/components/ui'
+
+export default function HomePage() {
+  const router = useRouter()
+  const [shop, setShop] = useState({})
+  const [reviews, setReviews] = useState([])
+
+  useEffect(() => {
+    fetch('/api/shop').then(r => r.json()).then(setShop).catch(() => {})
+    fetch('/api/reviews').then(r => r.json()).then(d => setReviews(d.reviews || [])).catch(() => {})
+  }, [])
+
+  const pending = reviews.filter(r => !r.hasReply).length
+  const langCount = { en:0, zh:0, ko:0, ja:0 }
+  reviews.filter(r => !r.hasReply).forEach(r => { if(langCount[r.detectedLang] !== undefined) langCount[r.detectedLang]++ })
+
+  const langLabel = Object.entries(langCount).filter(([,v]) => v > 0)
+    .map(([k,v]) => ({ en:'🇺🇸', zh:'🇨🇳', ko:'🇰🇷', ja:'🇯🇵' }[k] + ` ${v}건`).join(' · '))
+
+  return (
+    <div style={{ flex:1, display:'flex', flexDirection:'column' }}>
+      <div style={{ padding:'20px 18px 12px', display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+        <div>
+          <div style={{ fontSize:12, color:'#B0BAB6' }}>안녕하세요 👋</div>
+          <div style={{ fontSize:20, fontWeight:700, color:'#1A2421' }}>{shop.shop_name || '내 가게'}</div>
+        </div>
+        <div style={{ width:38, height:38, borderRadius:'50%', background:'#F4F6F5', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>🔔</div>
+      </div>
+
+      <div style={{ flex:1, padding:'4px 18px 16px', overflowY:'auto' }}>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:12 }}>
+          <StatCard value={pending || 0} label="새 리뷰 대기" green={pending > 0} />
+          <StatCard value={reviews.length} label="총 리뷰 수" />
+        </div>
+
+        {pending > 0 && (
+          <Card teal style={{ marginBottom:10 }}>
+            <div style={{ fontSize:12, color:'#0F6E56', fontWeight:700, marginBottom:4 }}>📬 답변 대기 리뷰 {pending}건</div>
+            <div style={{ fontSize:11, color:'#085041', marginBottom:8 }}>
+              {Object.entries(langCount).filter(([,v]) => v > 0).map(([k,v]) => ({ en:'🇺🇸 영어', zh:'🇨🇳 중국어', ko:'🇰🇷 한국어', ja:'🇯🇵 일본어' }[k] + ` ${v}건`)).join(' · ')}
+            </div>
+            <button onClick={() => router.push('/review')}
+              style={{ padding:'7px 16px', borderRadius:8, border:'none', background:'#1D9E75', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+              지금 답변하기 →
+            </button>
+          </Card>
+        )}
+
+        <Card style={{ marginBottom:12 }}>
+          <div style={{ fontSize:12, color:'#6B7875', fontWeight:600, marginBottom:8 }}>연동된 채널</div>
+          {[
+            { icon:'🔵', name:'Google 비즈니스', sub:'리뷰 답변 · 유튜브', color:'#1D9E75' },
+            { icon:'📸', name:'Instagram', sub:'앱 심사 중...', color:'#EF9F27' },
+            { icon:'🎵', name:'TikTok', sub:'앱 심사 중...', color:'#EF9F27' },
+          ].map(ch => (
+            <div key={ch.name} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'6px 0', borderBottom:'1px solid #F4F6F5' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <span style={{ fontSize:18 }}>{ch.icon}</span>
+                <div>
+                  <div style={{ fontSize:13, fontWeight:600, color:'#1A2421' }}>{ch.name}</div>
+                  <div style={{ fontSize:10, color:'#B0BAB6' }}>{ch.sub}</div>
+                </div>
+              </div>
+              <span style={{ fontSize:10, color:ch.color, fontWeight:600 }}>{ch.color === '#1D9E75' ? '✓ 연동됨' : '심사중'}</span>
+            </div>
+          ))}
+        </Card>
+
+        <PrimaryBtn onClick={() => router.push('/video')}>+ 새 영상 만들기</PrimaryBtn>
+      </div>
+      <BottomNav />
+    </div>
+  )
+}
