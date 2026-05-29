@@ -900,32 +900,14 @@ async function generateCaption() {
   const loc = document.getElementById('shopLoc')?.value || '서귀포시 성산읍';
   const box = document.getElementById('caption-result');
   box.innerHTML = '<div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>';
-  const prompt = `당신은 제주 관광업 SNS 마케팅 전문가입니다.
-
-가게 정보:
-- 이름: ${shop}
-- 위치: ${loc}
-- 업종: ${selectedType === 'pension' ? '펜션/숙박' : '카페'}
-
-아래 3개 언어로 인스타그램/유튜브/틱톡 영상 캡션을 각각 작성해주세요.
-각 언어 앞에 국기 이모지를 붙이고, 해시태그 3개씩 포함해주세요.
-설명 없이 캡션만 출력하세요.
-
-🇺🇸 영어 캡션:
-🇨🇳 중국어 캡션:
-🇯🇵 일본어 캡션:`;
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch('/api/generate-caption', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 800,
-        messages: [{ role: 'user', content: prompt }]
-      })
+      body: JSON.stringify({ shopName: shop, shopLoc: loc, shopType: selectedType })
     });
     const data = await res.json();
-    box.textContent = data.content?.map(c => c.text || '').join('') || '캡션 생성에 실패했어요.';
+    box.textContent = data.result || '캡션 생성에 실패했어요.';
   } catch { box.textContent = '네트워크 오류가 발생했어요. 다시 시도해 주세요.'; }
 }
 
@@ -934,31 +916,14 @@ async function generateReply() {
   const shop = document.getElementById('shopName')?.value || '제주 바다펜션';
   const box = document.getElementById('reply-result');
   box.innerHTML = '<div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>';
-  const langMap = { en: '영어', zh: '중국어', ko: '한국어' };
-  const prompt = `당신은 제주 관광업 숙박업체 사장님의 구글 리뷰 답변 전문가입니다.
-
-가게 이름: ${shop}
-리뷰 내용: ${d.text}
-리뷰 언어: ${langMap[currentReviewLang]}
-
-위 리뷰에 대해 ${langMap[currentReviewLang]}로 따뜻하고 진심 어린 답변을 작성해주세요.
-- 3~5문장 분량
-- 방문에 감사하고 구체적인 언급 포함
-- 재방문 유도
-- 이모지 1~2개
-- 다른 설명 없이 답변만 출력`;
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch('/api/generate-reply', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 500,
-        messages: [{ role: 'user', content: prompt }]
-      })
+      body: JSON.stringify({ shopName: shop, reviewText: d.text, reviewLang: currentReviewLang })
     });
     const data = await res.json();
-    box.textContent = data.content?.map(c => c.text || '').join('') || '답변 생성에 실패했어요.';
+    box.textContent = data.result || '답변 생성에 실패했어요.';
   } catch { box.textContent = '네트워크 오류가 발생했어요.'; }
 }
 
