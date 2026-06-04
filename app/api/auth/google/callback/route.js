@@ -73,7 +73,7 @@ export async function GET(request) {
       .eq('id', user.id)
       .single()
 
-    const redirectTo = profile?.shop_name ? '/home' : '/register'
+    const redirectTo = profile?.shop_name?.trim() ? '/home' : '/register'
     return NextResponse.redirect(new URL(redirectTo, request.url))
 
   } catch (err) {
