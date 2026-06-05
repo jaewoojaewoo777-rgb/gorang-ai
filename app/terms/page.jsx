@@ -1,0 +1,200 @@
+export default function TermsPage() {
+  return (
+    <div style={{
+      minHeight: "100vh",
+      backgroundColor: "#0a0a0a",
+      color: "#e8e8e8",
+      fontFamily: "'Pretendard', 'Noto Sans KR', sans-serif",
+    }}>
+      <header style={{
+        borderBottom: "1px solid #1e1e1e",
+        padding: "24px 0",
+        position: "sticky",
+        top: 0,
+        backgroundColor: "#0a0a0a",
+        zIndex: 100,
+      }}>
+        <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 24px", display: "flex", alignItems: "center", gap: 12 }}>
+          <a href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 8,
+              background: "linear-gradient(135deg, #00d4aa, #0099ff)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 16, fontWeight: 700, color: "#fff",
+            }}>고</div>
+            <span style={{ fontSize: 18, fontWeight: 700, color: "#fff" }}>고랑AI</span>
+          </a>
+          <span style={{ color: "#444", margin: "0 8px" }}>·</span>
+          <span style={{ fontSize: 14, color: "#888" }}>이용약관 / Terms of Service</span>
+        </div>
+      </header>
+
+      <div style={{
+        background: "linear-gradient(180deg, #0d1520 0%, #0a0a0a 100%)",
+        padding: "64px 24px 48px",
+        textAlign: "center",
+      }}>
+        <div style={{ maxWidth: 860, margin: "0 auto" }}>
+          <div style={{
+            display: "inline-block", padding: "6px 16px", borderRadius: 999,
+            border: "1px solid #0099ff33", backgroundColor: "#0099ff11",
+            fontSize: 12, color: "#0099ff", marginBottom: 20, letterSpacing: "0.05em",
+          }}>TERMS OF SERVICE · 이용약관</div>
+          <h1 style={{ fontSize: "clamp(28px, 5vw, 42px)", fontWeight: 800, margin: "0 0 16px", color: "#fff", lineHeight: 1.2 }}>
+            이용약관<br />
+            <span style={{ color: "#0099ff", fontSize: "0.65em", fontWeight: 600 }}>Terms of Service</span>
+          </h1>
+          <p style={{ color: "#666", fontSize: 14, margin: 0 }}>
+            시행일 / Effective Date: <strong style={{ color: "#888" }}>2025년 1월 1일 / January 1, 2025</strong>
+            &nbsp;&nbsp;|&nbsp;&nbsp;
+            최종 수정 / Last Updated: <strong style={{ color: "#888" }}>2025년 6월 1일 / June 1, 2025</strong>
+          </p>
+        </div>
+      </div>
+
+      <main style={{ maxWidth: 860, margin: "0 auto", padding: "48px 24px 96px" }}>
+
+        <div style={{
+          backgroundColor: "#0d1520", border: "1px solid #0099ff33",
+          borderLeft: "3px solid #0099ff", borderRadius: 8,
+          padding: "20px 24px", marginBottom: 48, fontSize: 14, lineHeight: 1.8, color: "#999",
+        }}>
+          본 이용약관은 고랑AI(이하 "회사")가 제공하는 서비스의 이용과 관련하여 회사와 이용자 간의 권리, 의무 및 책임사항을 규정합니다.<br />
+          <em>These Terms of Service govern the relationship between GorangAI ("Company") and users regarding the use of our services.</em>
+        </div>
+
+        <Section num="1" title="서비스 소개" subtitle="About Our Service" color="#0099ff">
+          <p style={biKo}>고랑AI는 제주도 카페 및 펜션 사업자를 위한 SNS 마케팅 자동화 플랫폼입니다. YouTube, TikTok, Instagram에 영상을 자동으로 업로드하고, Google 지도 리뷰에 AI가 자동으로 답변하는 기능을 제공합니다.</p>
+          <p style={biEn}>GorangAI is an SNS marketing automation platform for café and pension business owners in Jeju Island. We provide automated video uploading to YouTube, TikTok, and Instagram, as well as AI-powered auto-replies to Google Maps reviews.</p>
+        </Section>
+
+        <Section num="2" title="약관의 동의" subtitle="Agreement to Terms" color="#0099ff">
+          <p style={biKo}>서비스에 가입하거나 이용함으로써, 이용자는 본 약관에 동의한 것으로 간주됩니다. 만 14세 미만인 경우 서비스를 이용할 수 없습니다.</p>
+          <p style={biEn}>By registering for or using our service, you agree to be bound by these Terms. Users under 14 years of age may not use the service.</p>
+        </Section>
+
+        <Section num="3" title="계정 및 보안" subtitle="Account & Security" color="#0099ff">
+          <ul style={listStyle}>
+            <li>KO: 계정은 Google 계정을 통해 가입할 수 있습니다. / EN: Users may register via Google account.</li>
+            <li>KO: 계정은 본인만 사용 가능하며 타인에게 양도할 수 없습니다. / EN: Accounts are personal and non-transferable.</li>
+            <li>KO: 계정 도용 또는 보안 위협 발생 시 즉시 회사에 통보해야 합니다. / EN: Please notify us immediately of any unauthorized use or security breach.</li>
+            <li>KO: 허위 정보 기재 시 서비스 이용이 제한될 수 있습니다. / EN: Providing false information may result in service termination.</li>
+          </ul>
+        </Section>
+
+        <Section num="4" title="서비스 이용 조건" subtitle="Service Usage Conditions" color="#0099ff">
+          <p style={biKo}>이용자는 다음 행위를 해서는 안 됩니다:</p>
+          <p style={biEn}>Users must not engage in the following activities:</p>
+          <ul style={listStyle}>
+            <li>KO: 저작권, 상표권 등 제3자의 지식재산권 침해 / EN: Infringement of third-party intellectual property rights</li>
+            <li>KO: 불법적이거나 유해한 콘텐츠 업로드 / EN: Uploading illegal or harmful content</li>
+            <li>KO: 스팸, 허위 광고, 사기 행위 / EN: Spam, false advertising, or fraudulent activities</li>
+            <li>KO: 서비스의 정상적인 운영을 방해하는 행위 / EN: Interfering with the normal operation of the service</li>
+            <li>KO: TikTok, YouTube, Instagram 이용약관 위반 / EN: Violation of TikTok, YouTube, Instagram terms of service</li>
+          </ul>
+        </Section>
+
+        <Section num="5" title="구독 및 결제" subtitle="Subscription & Payment" color="#0099ff">
+          <table style={tableStyle}>
+            <thead>
+              <tr>
+                <th style={thStyle}>플랜 / Plan</th>
+                <th style={thStyle}>가격 / Price</th>
+                <th style={thStyle}>주요 기능 / Features</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                ["베이직 / Basic", "₩29,000/월", "기본 SNS 자동화 / Basic SNS automation"],
+                ["스탠다드 / Standard", "₩59,000/월", "다채널 업로드 + AI 리뷰 / Multi-channel + AI reviews"],
+                ["프로 / Pro", "₩129,000/월", "전체 기능 + 우선 지원 / Full features + priority support"],
+                ["엔터프라이즈 / Enterprise", "별도 문의 / Custom", "맞춤형 솔루션 / Custom solutions"],
+              ].map(([plan, price, features]) => (
+                <tr key={plan}>
+                  <td style={tdStyle}><strong>{plan}</strong></td>
+                  <td style={{ ...tdStyle, color: "#0099ff", fontWeight: 600 }}>{price}</td>
+                  <td style={tdStyle}>{features}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p style={{ ...biKo, marginTop: 16 }}>구독은 매월 자동 갱신되며, 해지는 다음 결제일 전까지 설정 메뉴에서 가능합니다.</p>
+          <p style={biEn}>Subscriptions renew automatically each month. You may cancel before the next billing date in the settings menu.</p>
+        </Section>
+
+        <Section num="6" title="SNS 플랫폼 연동" subtitle="SNS Platform Integration" color="#0099ff">
+          <p style={biKo}>고랑AI는 이용자의 동의 하에 TikTok, YouTube, Instagram 계정을 연동합니다. 각 플랫폼의 이용약관을 준수할 책임은 이용자에게 있습니다.</p>
+          <p style={biEn}>GorangAI integrates with TikTok, YouTube, and Instagram with your consent. You are responsible for complying with each platform&apos;s terms of service.</p>
+        </Section>
+
+        <Section num="7" title="지식재산권" subtitle="Intellectual Property" color="#0099ff">
+          <p style={biKo}>이용자가 서비스를 통해 업로드하는 콘텐츠의 저작권은 이용자에게 있습니다. 회사는 서비스 제공 목적 외에 이용자의 콘텐츠를 사용하지 않습니다.</p>
+          <p style={biEn}>Copyright in content uploaded by users remains with the user. The Company will not use user content for any purpose other than service provision.</p>
+        </Section>
+
+        <Section num="8" title="책임의 한계" subtitle="Limitation of Liability" color="#0099ff">
+          <ul style={listStyle}>
+            <li>KO: SNS 플랫폼의 정책 변경으로 인한 서비스 제약 / EN: Service restrictions due to SNS platform policy changes</li>
+            <li>KO: 이용자의 콘텐츠로 인해 발생한 제3자와의 분쟁 / EN: Disputes with third parties arising from user content</li>
+            <li>KO: 천재지변, 해킹 등 불가항력적 사유로 인한 서비스 중단 / EN: Service interruptions due to force majeure events</li>
+          </ul>
+        </Section>
+
+        <Section num="9" title="분쟁 해결 및 준거법" subtitle="Dispute Resolution & Governing Law" color="#0099ff">
+          <p style={biKo}>본 약관은 대한민국 법률에 따라 해석 및 적용됩니다. 분쟁은 협의를 통해 해결하며, 협의가 이루어지지 않을 경우 서울중앙지방법원을 제1심 관할 법원으로 합니다.</p>
+          <p style={biEn}>These Terms are governed by the laws of the Republic of Korea. Disputes shall first be resolved through consultation; if unsuccessful, the Seoul Central District Court shall have jurisdiction.</p>
+        </Section>
+
+        <Section num="10" title="문의처" subtitle="Contact Us" color="#0099ff">
+          <div style={{ backgroundColor: "#0d1520", border: "1px solid #0099ff33", borderRadius: 12, padding: "24px" }}>
+            {[
+              ["서비스명 / Service", "고랑AI / GorangAI"],
+              ["이메일 / Email", "support@gorang-ai.com"],
+              ["웹사이트 / Website", "https://gorang-ai.com"],
+            ].map(([label, value]) => (
+              <div key={label} style={{ display: "flex", gap: 12, fontSize: 14, marginBottom: 8 }}>
+                <span style={{ color: "#555", minWidth: 180 }}>{label}</span>
+                <span style={{ color: "#ccc" }}>{value}</span>
+              </div>
+            ))}
+          </div>
+        </Section>
+
+        <div style={{ marginTop: 64, paddingTop: 32, borderTop: "1px solid #1e1e1e", textAlign: "center", color: "#444", fontSize: 13 }}>
+          <p>© 2025 고랑AI / GorangAI. All rights reserved.</p>
+          <p style={{ marginTop: 8 }}>
+            <a href="/privacy" style={{ color: "#0099ff", textDecoration: "none" }}>개인정보처리방침 / Privacy Policy</a>
+            &nbsp;&nbsp;·&nbsp;&nbsp;
+            <a href="/" style={{ color: "#666", textDecoration: "none" }}>홈으로 / Home</a>
+          </p>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function Section({ num, title, subtitle, color = "#0099ff", children }) {
+  return (
+    <section style={{ marginBottom: 56 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 20 }}>
+        <span style={{
+          fontSize: 12, fontWeight: 700, color,
+          backgroundColor: `${color}11`, border: `1px solid ${color}33`,
+          padding: "2px 10px", borderRadius: 999, letterSpacing: "0.05em",
+        }}>0{num}</span>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#fff" }}>{title}</h2>
+          <p style={{ margin: "2px 0 0", fontSize: 13, color, fontWeight: 500 }}>{subtitle}</p>
+        </div>
+      </div>
+      <div>{children}</div>
+    </section>
+  );
+}
+
+const biKo = { margin: "0 0 6px", color: "#ccc", fontSize: 15, lineHeight: 1.7 };
+const biEn = { margin: "0 0 16px", color: "#666", fontSize: 14, lineHeight: 1.7, fontStyle: "italic" };
+const listStyle = { paddingLeft: 20, margin: "12px 0", display: "grid", gap: 12, color: "#bbb", fontSize: 14, lineHeight: 1.8 };
+const tableStyle = { width: "100%", borderCollapse: "collapse", marginTop: 16, fontSize: 13 };
+const thStyle = { padding: "10px 14px", textAlign: "left", backgroundColor: "#111", color: "#888", borderBottom: "1px solid #222", fontWeight: 600 };
+const tdStyle = { padding: "10px 14px", borderBottom: "1px solid #1a1a1a", color: "#bbb", verticalAlign: "top" };
