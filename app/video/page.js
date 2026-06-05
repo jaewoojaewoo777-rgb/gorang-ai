@@ -331,7 +331,7 @@ export default function VideoPage() {
       const ratio = platformRatio[pid]
       const blob = videos[ratio]?.blob || videoFile
       if (!blob) { results.push({ platform: pid, status: '파일 없음' }); continue }
-      if (pid !== 'youtube_shorts' && pid !== 'youtube') {
+      if (pid === 'instagram') {
         results.push({ platform: pid, status: '⏳ 심사 후 업로드 예정' }); continue
       }
       const form = new FormData()
@@ -339,8 +339,16 @@ export default function VideoPage() {
       form.append('caption', caption)
       form.append('title', `고랑AI - ${pid === 'youtube' ? '가로' : '세로'} - ${new Date().toLocaleDateString('ko')}`)
       try {
-        const data = await (await fetch('/api/upload/youtube', { method: 'POST', body: form })).json()
-        results.push({ platform: pid, status: data.ok ? '✅ 업로드 완료' : '❌ 실패', url: data.youtubeUrl })
+        const endpoint = pid === 'tiktok' ? '/api/upload/tiktok' : '/api/upload/youtube'
+        const data = await (await fetch(endpoint, { method: 'POST', body: form })).json()
+        const url = pid === 'tiktok'
+          ? (data.ok ? '틱톡 앱에서 비공개로 확인' : undefined)
+          : data.youtubeUrl
+        results.push({
+          platform: pid,
+          status: data.ok ? '✅ 업로드 완료' : `❌ 실패 (${data.detail || data.error || ''})`,
+          url,
+        })
       } catch { results.push({ platform: pid, status: '❌ 네트워크 오류' }) }
     }
     setUploadResults(results)
