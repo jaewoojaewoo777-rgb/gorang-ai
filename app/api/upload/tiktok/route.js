@@ -18,15 +18,17 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 })
 
-// webm 등 → mp4 변환 (Cloudinary)
+// webm 등 → mp4 (일정 프레임레이트 CFR로 강제 재인코딩)
 async function convertToMp4(buffer) {
+  const transform = { video_codec: 'h264', audio_codec: 'aac', fps: '24-30' }
+
   const uploaded = await new Promise((resolve, reject) => {
     cloudinary.uploader
       .upload_stream(
         {
           resource_type: 'video',
           folder: 'gorang_tiktok',
-          eager: [{ format: 'mp4', video_codec: 'h264', audio_codec: 'aac', fps: '24-30' }],
+          eager: [{ transformation: [transform], format: 'mp4' }],
           eager_async: false,
         },
         (error, result) => (error ? reject(error) : resolve(result))
@@ -34,32 +36,45 @@ async function convertToMp4(buffer) {
       .end(buffer)
   })
 
-  let mp4Url = uploaded && uploaded.eager && uploaded.eager[0] && uploaded.eager[0].secure_url
-  if (!mp4Url) {
-    mp4Url = cloudinary.url(uploaded.public_id, { resource_type: 'video', format: 'mp4', video_codec: 'h264', audio_codec: 'aac', fps: '24-30' })
+  // 진단용: Cloudinary가 읽은 원본 메타데이터
+  const meta = {
+    fps: uploaded && uploaded.frame_rate,
+    frames: uploaded && uploaded.nb_frames,
+    duration: uploaded && uploaded.duration,
   }
 
-  // 변환된 mp4 받아오기 (아직 처리중이면 재시도)
+  let mp4Url = uploaded && uploaded.eager && uploaded.eager[0] && uploaded.eager[0].secure_url
+  if (!mp4Url) {
+    mp4Url = cloudinary.url(uploaded.public_id, {
+      resource_type: 'video',
+      transformation: [transform],
+      format: 'mp4',
+    })
+  }
+
+  // 변환된 mp4 받아오기 (처리중이면 재시도)
   let mp4Buffer = null
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 8; i++) {
     const resp = await fetch(mp4Url)
     if (resp.ok) {
       const ct = (resp.headers.get('content-type') || '').toLowerCase()
       if (ct.includes('video') || ct.includes('mp4')) {
-        mp4Buffer = Buffer.from(await resp.arrayBuffer())
-        break
+        const ab = await resp.arrayBuffer()
+        if (ab.byteLength > 1000) {
+          mp4Buffer = Buffer.from(ab)
+          break
+        }
       }
     }
     await new Promise((r) => setTimeout(r, 2500))
   }
 
-  // Cloudinary 정리 (실패해도 무시)
   try {
     await cloudinary.uploader.destroy(uploaded.public_id, { resource_type: 'video' })
   } catch (_) {}
 
   if (!mp4Buffer) throw new Error('Cloudinary mp4 변환 시간 초과')
-  return mp4Buffer
+  return { buffer: mp4Buffer, meta }
 }
 
 export async function POST(request) {
@@ -85,7 +100,6 @@ export async function POST(request) {
       )
     }
 
-    // 토큰 갱신 (틱톡 액세스 토큰은 24시간 만료)
     let accessToken = user.tiktok_access_token
     const expiry = user.tiktok_token_expiry ? new Date(user.tiktok_token_expiry) : null
     if (!expiry || expiry.getTime() - Date.now() < 5 * 60 * 1000) {
@@ -105,17 +119,17 @@ export async function POST(request) {
 
     await queryCreatorInfo(accessToken)
 
-    // 파일 → 버퍼
     const arrayBuffer = await file.arrayBuffer()
     let videoBuffer = Buffer.from(arrayBuffer)
     const incomingType = (file.type || '').toLowerCase()
 
-    // mp4가 아니면 Cloudinary로 mp4 변환 (크롬은 webm이라 거의 항상 변환됨)
+    let srcMeta = null
     if (!incomingType.includes('mp4')) {
-      videoBuffer = await convertToMp4(videoBuffer)
+      const conv = await convertToMp4(videoBuffer)
+      videoBuffer = conv.buffer
+      srcMeta = conv.meta
     }
 
-    // 틱톡 업로드 (항상 mp4 · Direct Post · 심사 전이라 SELF_ONLY 비공개)
     const { publish_id } = await uploadTikTokVideo({
       accessToken,
       caption,
@@ -123,10 +137,10 @@ export async function POST(request) {
       mimeType: 'video/mp4',
     })
 
-    // === 게시 상태 폴링 ===
+    // 게시 상태 폴링
     let status = 'PROCESSING'
     let failReason = null
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 8; i++) {
       await new Promise((r) => setTimeout(r, 2500))
       const st = await getTikTokPostStatus(accessToken, publish_id)
       status = st.status || status
@@ -147,6 +161,10 @@ export async function POST(request) {
       tiktok_publish_id: publish_id,
     })
 
+    const metaStr = srcMeta
+      ? ` | 원본 fps:${srcMeta.fps} 프레임:${srcMeta.frames} 길이:${srcMeta.duration}s`
+      : ''
+
     if (status === 'PUBLISH_COMPLETE') {
       return NextResponse.json({ ok: true, tiktokPublishId: publish_id, status })
     }
@@ -154,14 +172,14 @@ export async function POST(request) {
       return NextResponse.json({
         ok: false,
         error: '틱톡 게시 실패',
-        detail: `사유: ${failReason}`,
+        detail: `사유: ${failReason}${metaStr}`,
         tiktokStatus: status,
       })
     }
     return NextResponse.json({
       ok: false,
       error: '아직 처리 중',
-      detail: `틱톡 상태: ${status} — 몇 분 뒤 틱톡 앱에서 확인해주세요`,
+      detail: `틱톡 상태: ${status} — 몇 분 뒤 틱톡 앱에서 확인해주세요${metaStr}`,
       tiktokStatus: status,
     })
   } catch (err) {
