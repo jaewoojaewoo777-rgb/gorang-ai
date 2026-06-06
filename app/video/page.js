@@ -102,7 +102,7 @@ async function buildVideo({ imgs, captionText, bgmType, isPortrait, onProgress }
   const stream = new MediaStream(tracks)
 
   // MediaRecorder
-  const mimeType = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4']
+  const mimeType = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']
     .find(m => MediaRecorder.isTypeSupported(m)) || ''
 
   const chunks = []
