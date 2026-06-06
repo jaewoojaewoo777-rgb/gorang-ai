@@ -26,7 +26,7 @@ async function convertToMp4(buffer) {
         {
           resource_type: 'video',
           folder: 'gorang_tiktok',
-          eager: [{ format: 'mp4', video_codec: 'h264', audio_codec: 'aac', fps: 30 }],
+          eager: [{ format: 'mp4', video_codec: 'h264', audio_codec: 'aac', fps: '24-30' }],
           eager_async: false,
         },
         (error, result) => (error ? reject(error) : resolve(result))
@@ -36,7 +36,7 @@ async function convertToMp4(buffer) {
 
   let mp4Url = uploaded && uploaded.eager && uploaded.eager[0] && uploaded.eager[0].secure_url
   if (!mp4Url) {
-    mp4Url = cloudinary.url(uploaded.public_id, { resource_type: 'video', format: 'mp4', video_codec: 'h264', audio_codec: 'aac', fps: 30 })
+    mp4Url = cloudinary.url(uploaded.public_id, { resource_type: 'video', format: 'mp4', video_codec: 'h264', audio_codec: 'aac', fps: '24-30' })
   }
 
   // 변환된 mp4 받아오기 (아직 처리중이면 재시도)
