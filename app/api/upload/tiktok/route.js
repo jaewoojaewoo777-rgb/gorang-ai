@@ -121,14 +121,12 @@ export async function POST(request) {
 
     const arrayBuffer = await file.arrayBuffer()
     let videoBuffer = Buffer.from(arrayBuffer)
-    const incomingType = (file.type || '').toLowerCase()
 
-    let srcMeta = null
-    if (!incomingType.includes('mp4')) {
-      const conv = await convertToMp4(videoBuffer)
-      videoBuffer = conv.buffer
-      srcMeta = conv.meta
-    }
+    // 브라우저 영상은 mp4여도 가변 프레임레이트(VFR)라 틱톡이 거부함
+    // → 형식과 무관하게 항상 Cloudinary로 재인코딩해서 일정 프레임레이트(CFR) 강제
+    const conv = await convertToMp4(videoBuffer)
+    videoBuffer = conv.buffer
+    const srcMeta = conv.meta
 
     const { publish_id } = await uploadTikTokVideo({
       accessToken,
