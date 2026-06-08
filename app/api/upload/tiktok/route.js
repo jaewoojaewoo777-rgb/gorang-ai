@@ -119,6 +119,7 @@ export async function POST(request) {
 
     await queryCreatorInfo(accessToken)
 
+    const reqStart = Date.now()
     const arrayBuffer = await file.arrayBuffer()
     let videoBuffer = Buffer.from(arrayBuffer)
 
@@ -135,11 +136,13 @@ export async function POST(request) {
       mimeType: 'video/mp4',
     })
 
-    // 게시 상태 폴링
+    // 게시 상태 폴링 — 서버리스 60초 제한 안에서 최대한 오래(약 52초) 대기해 최종 결과를 잡는다
     let status = 'PROCESSING'
     let failReason = null
-    for (let i = 0; i < 8; i++) {
-      await new Promise((r) => setTimeout(r, 2500))
+    let polls = 0
+    while (Date.now() - reqStart < 52000) {
+      await new Promise((r) => setTimeout(r, 3000))
+      polls++
       const st = await getTikTokPostStatus(accessToken, publish_id)
       status = st.status || status
       if (status === 'PUBLISH_COMPLETE') break
@@ -159,9 +162,7 @@ export async function POST(request) {
       tiktok_publish_id: publish_id,
     })
 
-    const metaStr = srcMeta
-      ? ` | 원본 fps:${srcMeta.fps} 프레임:${srcMeta.frames} 길이:${srcMeta.duration}s`
-      : ''
+    const metaStr = ` | 원본fps:${srcMeta ? srcMeta.fps : '?'} 길이:${srcMeta ? srcMeta.duration : '?'}s 폴링${polls}회`
 
     if (status === 'PUBLISH_COMPLETE') {
       return NextResponse.json({ ok: true, tiktokPublishId: publish_id, status })
