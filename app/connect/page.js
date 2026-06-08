@@ -1,9 +1,10 @@
 'use client'
-import { Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { Suspense, useEffect } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 
 function ConnectContent() {
   const params = useSearchParams()
+  const router = useRouter()
   const error = params.get('error')
   const tiktok = params.get('tiktok')
 
@@ -14,6 +15,42 @@ function ConnectContent() {
     tiktok_cancelled: '틱톡 연동이 취소됐어요. 다시 시도해주세요.',
     tiktok_state: '보안 확인에 실패했어요. 다시 시도해주세요.',
     tiktok_failed: '틱톡 연동 중 오류가 발생했어요. 다시 시도해주세요.',
+  }
+
+  // 틱톡 연동 완료 시 3초 후 영상 만들기 페이지로 이동
+  useEffect(() => {
+    if (tiktok === 'connected') {
+      const timer = setTimeout(() => {
+        router.push('/video')
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [tiktok, router])
+
+  // 틱톡 연동 완료 화면
+  if (tiktok === 'connected') {
+    return (
+      <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'40px 24px', textAlign:'center' }}>
+        <div style={{ fontSize:64, marginBottom:20 }}>🎉</div>
+        <div style={{ fontSize:22, fontWeight:700, color:'#1A2421', marginBottom:10 }}>틱톡 연동 완료!</div>
+        <div style={{ fontSize:14, color:'#6B7875', marginBottom:32, lineHeight:1.7 }}>
+          틱톡 계정이 성공적으로 연동됐어요.<br/>
+          이제 영상을 만들고 틱톡에 바로 업로드할 수 있어요!
+        </div>
+        <div style={{ background:'#E1F5EE', border:'1.5px solid #5DCAA5', borderRadius:14, padding:'16px 24px', marginBottom:32, width:'100%', maxWidth:320 }}>
+          {['✅ 틱톡 자동 업로드', '✅ 영상 제작 + 바로 게시', '✅ 한·영·중·일 자막 자동 생성'].map(t => (
+            <div key={t} style={{ fontSize:13, color:'#085041', marginBottom:6 }}>{t}</div>
+          ))}
+        </div>
+        <div style={{ fontSize:13, color:'#B0BAB6', marginBottom:20 }}>3초 후 영상 만들기 페이지로 이동해요...</div>
+        <button
+          onClick={() => router.push('/video')}
+          style={{ padding:'14px 32px', borderRadius:14, border:'none', background:'#1D9E75', color:'#fff', fontSize:15, fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}
+        >
+          지금 바로 영상 만들기 →
+        </button>
+      </div>
+    )
   }
 
   return (
@@ -27,11 +64,6 @@ function ConnectContent() {
       {error && (
         <div style={{ background:'#FCEBEB', border:'1.5px solid #F09595', borderRadius:12, padding:'12px 16px', marginBottom:16, fontSize:13, color:'#A32D2D' }}>
           {errorMsg[error] || '오류가 발생했어요. 다시 시도해주세요.'}
-        </div>
-      )}
-      {tiktok === 'connected' && (
-        <div style={{ background:'#E1F5EE', border:'1.5px solid #5DCAA5', borderRadius:12, padding:'12px 16px', marginBottom:16, fontSize:13, color:'#0F6E56', fontWeight:700 }}>
-          ✅ 틱톡 계정이 연동됐어요!
         </div>
       )}
 
@@ -48,7 +80,6 @@ function ConnectContent() {
         </button>
       </a>
 
-      {/* 틱톡 연동 버튼 (구글 로그인 후 이용 가능) */}
       <a href="/api/auth/tiktok" style={{ textDecoration:'none' }}>
         <button style={{ width:'100%', padding:16, borderRadius:14, border:'none', background:'#010101', color:'#fff', fontSize:15, fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', display:'flex', alignItems:'center', justifyContent:'center', gap:8, marginTop:12 }}>
           🎵 틱톡 계정 연동하기
