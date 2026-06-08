@@ -3,12 +3,10 @@ import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { BottomNav, TopBar, PrimaryBtn, GhostBtn, AiBox, LoadingDots } from '../../components/ui'
 
-// Web Audio API로 BGM 직접 생성 (CORS 문제 없음)
 function createBGM(ctx, type) {
   const master = ctx.createGain()
   master.gain.value = 0.18
   master.connect(ctx.destination)
-
   const presets = {
     calm:    [{ freq: 220, amp: 0.5 }, { freq: 330, amp: 0.3 }, { freq: 440, amp: 0.2 }],
     bright:  [{ freq: 261, amp: 0.4 }, { freq: 392, amp: 0.4 }, { freq: 523, amp: 0.3 }],
@@ -19,15 +17,9 @@ function createBGM(ctx, type) {
     const osc = ctx.createOscillator()
     const g = ctx.createGain()
     const filter = ctx.createBiquadFilter()
-    osc.type = 'sine'
-    osc.frequency.value = freq
-    g.gain.value = amp
-    filter.type = 'lowpass'
-    filter.frequency.value = 800
-    osc.connect(filter)
-    filter.connect(g)
-    g.connect(master)
-    osc.start()
+    osc.type = 'sine'; osc.frequency.value = freq; g.gain.value = amp
+    filter.type = 'lowpass'; filter.frequency.value = 800
+    osc.connect(filter); filter.connect(g); g.connect(master); osc.start()
     return osc
   })
   return () => nodes.forEach(o => { try { o.stop() } catch {} })
@@ -49,23 +41,29 @@ const LANG_LIST = [
 ]
 
 const PLATFORMS = [
-  { id: 'youtube_shorts', icon: '▶️', name: 'YouTube Shorts', ratio: 'portrait' },
-  { id: 'instagram',      icon: '📸', name: 'Instagram 릴스',  ratio: 'portrait' },
-  { id: 'tiktok',         icon: '🎵', name: 'TikTok',          ratio: 'portrait' },
-  { id: 'youtube',        icon: '📺', name: 'YouTube 일반',     ratio: 'landscape' },
+  { id: 'youtube_shorts', icon: '▶️', name: 'YouTube Shorts', defaultRatio: 'portrait' },
+  { id: 'instagram',      icon: '📸', name: 'Instagram 릴스',  defaultRatio: 'portrait' },
+  { id: 'tiktok',         icon: '🎵', name: 'TikTok',          defaultRatio: 'portrait' },
+  { id: 'youtube',        icon: '📺', name: 'YouTube 일반',     defaultRatio: 'landscape' },
+]
+
+// ratio: 'portrait' | 'landscape' | 'both'
+const RATIO_OPTIONS = [
+  { value: 'portrait',  label: '세로' },
+  { value: 'landscape', label: '가로' },
+  { value: 'both',      label: '둘 다' },
 ]
 
 async function buildVideo({ imgs, captionText, bgmType, isPortrait, onProgress }) {
   const W = isPortrait ? 1080 : 1920
   const H = isPortrait ? 1920 : 1080
-  const PER_IMG = 3000  // ms per photo
+  const PER_IMG = 3000
   const FPS = 24
 
   const canvas = document.createElement('canvas')
   canvas.width = W; canvas.height = H
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
 
-  // AudioContext + BGM
   let audioCtx = null, stopBGM = null, audioTrack = null
   if (bgmType && bgmType !== 'none') {
     try {
@@ -73,9 +71,7 @@ async function buildVideo({ imgs, captionText, bgmType, isPortrait, onProgress }
       const dest = audioCtx.createMediaStreamDestination()
       const master = audioCtx.createGain()
       master.gain.value = 0.18
-      master.connect(dest)
-      master.connect(audioCtx.destination)
-
+      master.connect(dest); master.connect(audioCtx.destination)
       const presets = {
         calm:    [{ freq: 220, amp: 0.5 }, { freq: 330, amp: 0.3 }, { freq: 440, amp: 0.2 }],
         bright:  [{ freq: 261, amp: 0.4 }, { freq: 392, amp: 0.4 }, { freq: 523, amp: 0.3 }],
@@ -85,9 +81,7 @@ async function buildVideo({ imgs, captionText, bgmType, isPortrait, onProgress }
       const oscs = (presets[bgmType] || presets.calm).map(({ freq, amp }) => {
         const osc = audioCtx.createOscillator()
         const g = audioCtx.createGain()
-        osc.type = 'sine'
-        osc.frequency.value = freq
-        g.gain.value = amp
+        osc.type = 'sine'; osc.frequency.value = freq; g.gain.value = amp
         osc.connect(g); g.connect(master); osc.start()
         return osc
       })
@@ -96,78 +90,52 @@ async function buildVideo({ imgs, captionText, bgmType, isPortrait, onProgress }
     } catch (e) { console.warn('BGM 생성 실패:', e) }
   }
 
-  // MediaStream
   const videoStream = canvas.captureStream(FPS)
   const tracks = [...videoStream.getVideoTracks(), ...(audioTrack ? [audioTrack] : [])]
   const stream = new MediaStream(tracks)
 
-  // MediaRecorder
   const mimeType = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']
     .find(m => MediaRecorder.isTypeSupported(m)) || ''
 
   const chunks = []
   const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : {})
   recorder.ondataavailable = e => { if (e.data && e.data.size > 0) chunks.push(e.data) }
-
   recorder.start(200)
 
   const firstLine = captionText
-    .split('\n')
-    .find(l => l.trim())
-    ?.replace(/[\uD83C][\uDDE6-\uDDFF][\uD83C][\uDDE6-\uDDFF]/g, '') // 국기 이모지 제거
-    ?.trim() || ''
+    .split('\n').find(l => l.trim())
+    ?.replace(/[\uD83C][\uDDE6-\uDDFF][\uD83C][\uDDE6-\uDDFF]/g, '').trim() || ''
 
   const TOTAL_MS = imgs.length * PER_IMG
 
-  // 각 사진 렌더링
   for (let i = 0; i < imgs.length; i++) {
     const img = imgs[i]
     const frameStart = performance.now()
-
     await new Promise(resolve => {
-      let rafId
-
       const drawFrame = () => {
         const elapsed = performance.now() - frameStart
         const t = Math.min(elapsed / PER_IMG, 1)
-
-        // 배경
-        ctx.fillStyle = '#111'
-        ctx.fillRect(0, 0, W, H)
-
-        // 켄번스 효과
+        ctx.fillStyle = '#111'; ctx.fillRect(0, 0, W, H)
         const scale = 1 + t * 0.06
         const iw = img.naturalWidth || img.width
         const ih = img.naturalHeight || img.height
         const ratio = Math.max(W / iw, H / ih)
-        const dw = iw * ratio * scale
-        const dh = ih * ratio * scale
+        const dw = iw * ratio * scale; const dh = ih * ratio * scale
         const dx = (W - dw) / 2 - (dw - W / scale) * t * 0.03
         const dy = (H - dh) / 2
         ctx.drawImage(img, dx, dy, dw, dh)
-
-        // 하단 그라데이션
         const grad = ctx.createLinearGradient(0, H * 0.5, 0, H)
-        grad.addColorStop(0, 'rgba(0,0,0,0)')
-        grad.addColorStop(1, 'rgba(0,0,0,0.72)')
-        ctx.fillStyle = grad
-        ctx.fillRect(0, 0, W, H)
-
-        // 자막
+        grad.addColorStop(0, 'rgba(0,0,0,0)'); grad.addColorStop(1, 'rgba(0,0,0,0.72)')
+        ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H)
         if (firstLine) {
           const fadeIn  = Math.min(1, elapsed / 600)
           const fadeOut = elapsed > PER_IMG - 600 ? Math.max(0, (PER_IMG - elapsed) / 600) : 1
           const alpha   = fadeIn * fadeOut
-
           const fontSize = isPortrait ? 54 : 40
-          ctx.save()
-          ctx.globalAlpha = alpha
+          ctx.save(); ctx.globalAlpha = alpha
           ctx.font = `bold ${fontSize}px "Apple SD Gothic Neo", "Noto Sans KR", sans-serif`
-          ctx.textAlign = 'center'
-          ctx.textBaseline = 'bottom'
-          ctx.shadowColor = 'rgba(0,0,0,0.9)'
-          ctx.shadowBlur = 14
-
+          ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'
+          ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 14
           const maxW = W - 100
           const words = firstLine.split('')
           let line = '', lines = []
@@ -177,7 +145,6 @@ async function buildVideo({ imgs, captionText, bgmType, isPortrait, onProgress }
             else line = test
           }
           if (line) lines.push(line)
-
           const lh = fontSize + 10
           const baseY = H - (isPortrait ? 180 : 100)
           ctx.fillStyle = '#fff'
@@ -186,29 +153,20 @@ async function buildVideo({ imgs, captionText, bgmType, isPortrait, onProgress }
           })
           ctx.restore()
         }
-
-        // 진행률
         const progress = ((i * PER_IMG + elapsed) / TOTAL_MS) * 88
         onProgress(Math.min(progress, 88))
-
-        if (elapsed < PER_IMG) {
-          rafId = requestAnimationFrame(drawFrame)
-        } else {
-          resolve()
-        }
+        if (elapsed < PER_IMG) requestAnimationFrame(drawFrame)
+        else resolve()
       }
-
-      rafId = requestAnimationFrame(drawFrame)
+      requestAnimationFrame(drawFrame)
     })
   }
 
-  // 페이드 아웃
   await new Promise(resolve => {
     let alpha = 0
     const fade = () => {
       alpha = Math.min(alpha + 0.04, 1)
-      ctx.fillStyle = `rgba(0,0,0,${alpha})`
-      ctx.fillRect(0, 0, W, H)
+      ctx.fillStyle = `rgba(0,0,0,${alpha})`; ctx.fillRect(0, 0, W, H)
       if (alpha < 1) requestAnimationFrame(fade)
       else resolve()
     }
@@ -218,10 +176,8 @@ async function buildVideo({ imgs, captionText, bgmType, isPortrait, onProgress }
   if (stopBGM) stopBGM()
   recorder.stop()
   onProgress(95)
-
   await new Promise(resolve => { recorder.onstop = resolve })
   if (audioCtx) audioCtx.close()
-
   const blob = new Blob(chunks, { type: mimeType || 'video/webm' })
   onProgress(100)
   return blob
@@ -240,6 +196,7 @@ export default function VideoPage() {
   const [selectedLangs, setSelectedLangs] = useState(['en', 'zh'])
   const [selectedBGM, setSelectedBGM] = useState('calm')
   const [selectedPlatforms, setSelectedPlatforms] = useState(['youtube_shorts'])
+  // ratio: 'portrait' | 'landscape' | 'both'
   const [platformRatio, setPlatformRatio] = useState({
     youtube_shorts: 'portrait', instagram: 'portrait',
     tiktok: 'portrait', youtube: 'landscape',
@@ -284,7 +241,6 @@ export default function VideoPage() {
     if (!files.length) return
     setGenerating(true); setGenProgress(0); setGenError('')
     try {
-      // 이미지 로드
       const imgs = await Promise.all(previews.map(src => new Promise((res, rej) => {
         const img = new Image()
         img.crossOrigin = 'anonymous'
@@ -293,8 +249,10 @@ export default function VideoPage() {
         img.src = src
       })))
 
-      const needPortrait  = selectedPlatforms.some(p => platformRatio[p] === 'portrait')
-      const needLandscape = selectedPlatforms.some(p => platformRatio[p] === 'landscape')
+      // 선택된 플랫폼들의 ratio 합산해서 필요한 영상 종류 결정
+      const ratios = selectedPlatforms.map(p => platformRatio[p])
+      const needPortrait  = ratios.some(r => r === 'portrait' || r === 'both')
+      const needLandscape = ratios.some(r => r === 'landscape' || r === 'both')
       const result = {}
 
       if (needPortrait) {
@@ -329,27 +287,39 @@ export default function VideoPage() {
     const results = []
     for (const pid of selectedPlatforms) {
       const ratio = platformRatio[pid]
-      const blob = videos[ratio]?.blob || videoFile
-      if (!blob) { results.push({ platform: pid, status: '파일 없음' }); continue }
+
       if (pid === 'instagram') {
         results.push({ platform: pid, status: '⏳ 심사 후 업로드 예정' }); continue
       }
-      const form = new FormData()
-      form.append('video', blob, `gorang-${ratio}.webm`)
-      form.append('caption', caption)
-      form.append('title', `고랑AI - ${pid === 'youtube' ? '가로' : '세로'} - ${new Date().toLocaleDateString('ko')}`)
-      try {
-        const endpoint = pid === 'tiktok' ? '/api/upload/tiktok' : '/api/upload/youtube'
-        const data = await (await fetch(endpoint, { method: 'POST', body: form })).json()
-        const url = pid === 'tiktok'
-          ? (data.ok ? '틱톡 앱에서 비공개로 확인' : undefined)
-          : data.youtubeUrl
-        results.push({
-          platform: pid,
-          status: data.ok ? '✅ 업로드 완료' : `❌ 실패 (${data.detail || data.error || ''})`,
-          url,
-        })
-      } catch { results.push({ platform: pid, status: '❌ 네트워크 오류' }) }
+
+      // ratio가 'both'면 세로/가로 둘 다 업로드
+      const uploadRatios = ratio === 'both' ? ['portrait', 'landscape'] : [ratio]
+
+      for (const r of uploadRatios) {
+        const blob = videos[r]?.blob || videoFile
+        if (!blob) { results.push({ platform: pid, status: `파일 없음 (${r})` }); continue }
+
+        const form = new FormData()
+        const isShorts = pid === 'youtube_shorts' || r === 'portrait'
+        form.append('video', blob, `gorang-${r}.mp4`)
+        form.append('caption', caption)
+        form.append('title', `고랑AI - ${r === 'portrait' ? '세로' : '가로'} - ${new Date().toLocaleDateString('ko')}`)
+        form.append('isShorts', isShorts ? 'true' : 'false')
+
+        try {
+          const endpoint = pid === 'tiktok' ? '/api/upload/tiktok' : '/api/upload/youtube'
+          const data = await (await fetch(endpoint, { method: 'POST', body: form })).json()
+          const url = pid === 'tiktok'
+            ? (data.ok ? '틱톡 앱에서 비공개로 확인' : undefined)
+            : data.youtubeUrl
+          results.push({
+            platform: pid,
+            ratioLabel: ratio === 'both' ? (r === 'portrait' ? ' (세로)' : ' (가로)') : '',
+            status: data.ok ? '✅ 업로드 완료' : `❌ 실패 (${data.detail || data.error || ''})`,
+            url,
+          })
+        } catch { results.push({ platform: pid, ratioLabel: '', status: '❌ 네트워크 오류' }) }
+      }
     }
     setUploadResults(results)
     setUploading(false)
@@ -363,7 +333,6 @@ export default function VideoPage() {
     setGenError(''); setGenProgress(0)
   }
 
-  // 완료
   if (step === 4) return (
     <div style={{ flex:1, display:'flex', flexDirection:'column', padding:'32px 24px', alignItems:'center' }}>
       <div style={{ fontSize:40, marginBottom:12 }}>🎉</div>
@@ -372,7 +341,7 @@ export default function VideoPage() {
         const p = PLATFORMS.find(x => x.id === r.platform)
         return (
           <div key={i} style={{ width:'100%', background:'#F4F6F5', borderRadius:12, padding:'12px 14px', marginBottom:8 }}>
-            <div style={{ fontSize:13, fontWeight:600 }}>{p?.icon} {p?.name}</div>
+            <div style={{ fontSize:13, fontWeight:600 }}>{p?.icon} {p?.name}{r.ratioLabel}</div>
             <div style={{ fontSize:12, color: r.status.includes('✅') ? '#1D9E75' : '#EF9F27', marginTop:3 }}>{r.status}</div>
             {r.url && <a href={r.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:11, color:'#1D9E75', display:'block', marginTop:3 }}>▶️ 유튜브에서 보기</a>}
           </div>
@@ -388,7 +357,6 @@ export default function VideoPage() {
       <TopBar title="영상 만들기" sub={!mode ? '제작 방식 선택' : step===1 ? '설정' : step===2 ? '캡션 확인' : '미리보기'} />
       <div style={{ flex:1, padding:'0 18px 24px', overflowY:'auto' }}>
 
-        {/* 모드 선택 */}
         {!mode && (
           <>
             {[
@@ -407,7 +375,6 @@ export default function VideoPage() {
           </>
         )}
 
-        {/* Step 1: 파일 + 설정 */}
         {mode && step === 1 && (
           <>
             {mode === 'photos' && (
@@ -449,7 +416,7 @@ export default function VideoPage() {
               </>
             )}
 
-            {/* 플랫폼 선택 */}
+            {/* 플랫폼 선택 - 세로/가로/둘다 */}
             <div style={{ marginBottom:14 }}>
               <div style={{ fontSize:11, color:'#6B7875', fontWeight:500, marginBottom:8 }}>📤 업로드 플랫폼</div>
               {PLATFORMS.map(p => (
@@ -460,10 +427,10 @@ export default function VideoPage() {
                     <span style={{ fontSize:13, color:'#1A2421' }}>{p.icon} {p.name}</span>
                   </div>
                   <div style={{ display:'flex', gap:4 }}>
-                    {['portrait','landscape'].map(r => (
-                      <button key={r} onClick={e => { e.stopPropagation(); setPlatformRatio(prev => ({...prev, [p.id]:r})) }}
-                        style={{ padding:'3px 7px', borderRadius:10, border:`1px solid ${platformRatio[p.id]===r?'#1D9E75':'#E6EAE8'}`, background: platformRatio[p.id]===r?'#1D9E75':'#fff', color: platformRatio[p.id]===r?'#fff':'#6B7875', fontSize:10, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                        {r==='portrait'?'세로':'가로'}
+                    {RATIO_OPTIONS.map(r => (
+                      <button key={r.value} onClick={e => { e.stopPropagation(); setPlatformRatio(prev => ({...prev, [p.id]: r.value})) }}
+                        style={{ padding:'3px 7px', borderRadius:10, border:`1px solid ${platformRatio[p.id]===r.value?'#1D9E75':'#E6EAE8'}`, background: platformRatio[p.id]===r.value?'#1D9E75':'#fff', color: platformRatio[p.id]===r.value?'#fff':'#6B7875', fontSize:10, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight: platformRatio[p.id]===r.value?700:400 }}>
+                        {r.label}
                       </button>
                     ))}
                   </div>
@@ -508,7 +475,6 @@ export default function VideoPage() {
           </>
         )}
 
-        {/* Step 2: 캡션 + 영상 제작 */}
         {step === 2 && (
           <>
             {captionLoading
@@ -528,7 +494,6 @@ export default function VideoPage() {
                 </>
             }
 
-            {/* 생성 진행 */}
             {generating && (
               <div style={{ background:'#E1F5EE', borderRadius:14, padding:16, marginBottom:14, border:'1.5px solid #5DCAA5' }}>
                 <div style={{ fontSize:12, fontWeight:700, color:'#0F6E56', marginBottom:6 }}>{genMsg} {Math.round(genProgress)}%</div>
@@ -554,7 +519,6 @@ export default function VideoPage() {
           </>
         )}
 
-        {/* Step 3: 미리보기 + 업로드 */}
         {step === 3 && (
           <>
             {videos.portrait && (
@@ -580,10 +544,13 @@ export default function VideoPage() {
               <div style={{ fontSize:12, fontWeight:700, color:'#1A2421', marginBottom:8 }}>업로드 채널</div>
               {selectedPlatforms.map(pid => {
                 const p = PLATFORMS.find(x => x.id === pid)
+                const r = platformRatio[pid]
                 return (
                   <div key={pid} style={{ display:'flex', justifyContent:'space-between', fontSize:12, padding:'5px 0', borderBottom:'1px solid #E6EAE8' }}>
                     <span>{p?.icon} {p?.name}</span>
-                    <span style={{ color:'#6B7875', fontSize:11 }}>{platformRatio[pid]==='portrait'?'세로 9:16':'가로 16:9'}</span>
+                    <span style={{ color:'#6B7875', fontSize:11 }}>
+                      {r === 'both' ? '세로 + 가로 둘 다' : r === 'portrait' ? '세로 9:16' : '가로 16:9'}
+                    </span>
                   </div>
                 )
               })}
