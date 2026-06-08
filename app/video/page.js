@@ -3,28 +3,6 @@ import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { BottomNav, TopBar, PrimaryBtn, GhostBtn, AiBox, LoadingDots } from '../../components/ui'
 
-function createBGM(ctx, type) {
-  const master = ctx.createGain()
-  master.gain.value = 0.18
-  master.connect(ctx.destination)
-  const presets = {
-    calm:    [{ freq: 220, amp: 0.5 }, { freq: 330, amp: 0.3 }, { freq: 440, amp: 0.2 }],
-    bright:  [{ freq: 261, amp: 0.4 }, { freq: 392, amp: 0.4 }, { freq: 523, amp: 0.3 }],
-    jeju:    [{ freq: 196, amp: 0.5 }, { freq: 294, amp: 0.3 }, { freq: 370, amp: 0.2 }],
-    luxury:  [{ freq: 174, amp: 0.4 }, { freq: 261, amp: 0.3 }, { freq: 349, amp: 0.2 }],
-  }
-  const nodes = (presets[type] || presets.calm).map(({ freq, amp }) => {
-    const osc = ctx.createOscillator()
-    const g = ctx.createGain()
-    const filter = ctx.createBiquadFilter()
-    osc.type = 'sine'; osc.frequency.value = freq; g.gain.value = amp
-    filter.type = 'lowpass'; filter.frequency.value = 800
-    osc.connect(filter); filter.connect(g); g.connect(master); osc.start()
-    return osc
-  })
-  return () => nodes.forEach(o => { try { o.stop() } catch {} })
-}
-
 const BGM_LIST = [
   { id: 'none',   name: '🔇 없음' },
   { id: 'calm',   name: '🌊 잔잔한 감성' },
@@ -40,18 +18,12 @@ const LANG_LIST = [
   { code: 'ko', flag: '🇰🇷', name: '한국어' },
 ]
 
+// ratio 고정 — 변경 불가
 const PLATFORMS = [
-  { id: 'youtube_shorts', icon: '▶️', name: 'YouTube Shorts', defaultRatio: 'portrait' },
-  { id: 'instagram',      icon: '📸', name: 'Instagram 릴스',  defaultRatio: 'portrait' },
-  { id: 'tiktok',         icon: '🎵', name: 'TikTok',          defaultRatio: 'portrait' },
-  { id: 'youtube',        icon: '📺', name: 'YouTube 일반',     defaultRatio: 'landscape' },
-]
-
-// ratio: 'portrait' | 'landscape' | 'both'
-const RATIO_OPTIONS = [
-  { value: 'portrait',  label: '세로' },
-  { value: 'landscape', label: '가로' },
-  { value: 'both',      label: '둘 다' },
+  { id: 'youtube_shorts', icon: '▶️', name: 'YouTube Shorts', ratio: 'portrait',  ratioLabel: '세로 9:16' },
+  { id: 'instagram',      icon: '📸', name: 'Instagram 릴스',  ratio: 'portrait',  ratioLabel: '세로 9:16' },
+  { id: 'tiktok',         icon: '🎵', name: 'TikTok',          ratio: 'portrait',  ratioLabel: '세로 9:16' },
+  { id: 'youtube',        icon: '📺', name: 'YouTube 일반',     ratio: 'landscape', ratioLabel: '가로 16:9' },
 ]
 
 async function buildVideo({ imgs, captionText, bgmType, isPortrait, onProgress }) {
@@ -196,11 +168,6 @@ export default function VideoPage() {
   const [selectedLangs, setSelectedLangs] = useState(['en', 'zh'])
   const [selectedBGM, setSelectedBGM] = useState('calm')
   const [selectedPlatforms, setSelectedPlatforms] = useState(['youtube_shorts'])
-  // ratio: 'portrait' | 'landscape' | 'both'
-  const [platformRatio, setPlatformRatio] = useState({
-    youtube_shorts: 'portrait', instagram: 'portrait',
-    tiktok: 'portrait', youtube: 'landscape',
-  })
   const [generating, setGenerating] = useState(false)
   const [genProgress, setGenProgress] = useState(0)
   const [genMsg, setGenMsg] = useState('')
@@ -249,10 +216,10 @@ export default function VideoPage() {
         img.src = src
       })))
 
-      // 선택된 플랫폼들의 ratio 합산해서 필요한 영상 종류 결정
-      const ratios = selectedPlatforms.map(p => platformRatio[p])
-      const needPortrait  = ratios.some(r => r === 'portrait' || r === 'both')
-      const needLandscape = ratios.some(r => r === 'landscape' || r === 'both')
+      // 선택된 플랫폼들의 ratio로 필요한 영상 종류 결정
+      const ratios = selectedPlatforms.map(pid => PLATFORMS.find(p => p.id === pid)?.ratio)
+      const needPortrait  = ratios.includes('portrait')
+      const needLandscape = ratios.includes('landscape')
       const result = {}
 
       if (needPortrait) {
@@ -286,40 +253,33 @@ export default function VideoPage() {
     setUploading(true)
     const results = []
     for (const pid of selectedPlatforms) {
-      const ratio = platformRatio[pid]
+      const platform = PLATFORMS.find(p => p.id === pid)
+      const blob = videos[platform.ratio]?.blob || videoFile
 
       if (pid === 'instagram') {
         results.push({ platform: pid, status: '⏳ 심사 후 업로드 예정' }); continue
       }
+      if (!blob) { results.push({ platform: pid, status: '❌ 파일 없음' }); continue }
 
-      // ratio가 'both'면 세로/가로 둘 다 업로드
-      const uploadRatios = ratio === 'both' ? ['portrait', 'landscape'] : [ratio]
+      const form = new FormData()
+      const isShorts = platform.ratio === 'portrait'
+      form.append('video', blob, `gorang-${platform.ratio}.mp4`)
+      form.append('caption', caption)
+      form.append('title', `고랑AI - ${platform.ratio === 'portrait' ? '세로' : '가로'} - ${new Date().toLocaleDateString('ko')}`)
+      form.append('isShorts', isShorts ? 'true' : 'false')
 
-      for (const r of uploadRatios) {
-        const blob = videos[r]?.blob || videoFile
-        if (!blob) { results.push({ platform: pid, status: `파일 없음 (${r})` }); continue }
-
-        const form = new FormData()
-        const isShorts = pid === 'youtube_shorts' || r === 'portrait'
-        form.append('video', blob, `gorang-${r}.mp4`)
-        form.append('caption', caption)
-        form.append('title', `고랑AI - ${r === 'portrait' ? '세로' : '가로'} - ${new Date().toLocaleDateString('ko')}`)
-        form.append('isShorts', isShorts ? 'true' : 'false')
-
-        try {
-          const endpoint = pid === 'tiktok' ? '/api/upload/tiktok' : '/api/upload/youtube'
-          const data = await (await fetch(endpoint, { method: 'POST', body: form })).json()
-          const url = pid === 'tiktok'
-            ? (data.ok ? '틱톡 앱에서 비공개로 확인' : undefined)
-            : data.youtubeUrl
-          results.push({
-            platform: pid,
-            ratioLabel: ratio === 'both' ? (r === 'portrait' ? ' (세로)' : ' (가로)') : '',
-            status: data.ok ? '✅ 업로드 완료' : `❌ 실패 (${data.detail || data.error || ''})`,
-            url,
-          })
-        } catch { results.push({ platform: pid, ratioLabel: '', status: '❌ 네트워크 오류' }) }
-      }
+      try {
+        const endpoint = pid === 'tiktok' ? '/api/upload/tiktok' : '/api/upload/youtube'
+        const data = await (await fetch(endpoint, { method: 'POST', body: form })).json()
+        const url = pid === 'tiktok'
+          ? (data.ok ? '틱톡 앱에서 비공개로 확인' : undefined)
+          : data.youtubeUrl
+        results.push({
+          platform: pid,
+          status: data.ok ? '✅ 업로드 완료' : `❌ 실패 (${data.detail || data.error || ''})`,
+          url,
+        })
+      } catch { results.push({ platform: pid, status: '❌ 네트워크 오류' }) }
     }
     setUploadResults(results)
     setUploading(false)
@@ -341,7 +301,7 @@ export default function VideoPage() {
         const p = PLATFORMS.find(x => x.id === r.platform)
         return (
           <div key={i} style={{ width:'100%', background:'#F4F6F5', borderRadius:12, padding:'12px 14px', marginBottom:8 }}>
-            <div style={{ fontSize:13, fontWeight:600 }}>{p?.icon} {p?.name}{r.ratioLabel}</div>
+            <div style={{ fontSize:13, fontWeight:600 }}>{p?.icon} {p?.name}</div>
             <div style={{ fontSize:12, color: r.status.includes('✅') ? '#1D9E75' : '#EF9F27', marginTop:3 }}>{r.status}</div>
             {r.url && <a href={r.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:11, color:'#1D9E75', display:'block', marginTop:3 }}>▶️ 유튜브에서 보기</a>}
           </div>
@@ -416,24 +376,19 @@ export default function VideoPage() {
               </>
             )}
 
-            {/* 플랫폼 선택 - 세로/가로/둘다 */}
+            {/* 플랫폼 선택 - 비율 고정 표시 */}
             <div style={{ marginBottom:14 }}>
               <div style={{ fontSize:11, color:'#6B7875', fontWeight:500, marginBottom:8 }}>📤 업로드 플랫폼</div>
               {PLATFORMS.map(p => (
                 <div key={p.id} onClick={() => togglePlatform(p.id)}
-                  style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'8px 12px', marginBottom:6, borderRadius:10, border:`1.5px solid ${selectedPlatforms.includes(p.id)?'#1D9E75':'#E6EAE8'}`, background: selectedPlatforms.includes(p.id)?'#E1F5EE':'#fff', cursor:'pointer' }}>
+                  style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 12px', marginBottom:6, borderRadius:10, border:`1.5px solid ${selectedPlatforms.includes(p.id)?'#1D9E75':'#E6EAE8'}`, background: selectedPlatforms.includes(p.id)?'#E1F5EE':'#fff', cursor:'pointer' }}>
                   <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                     <input type="checkbox" checked={selectedPlatforms.includes(p.id)} readOnly style={{ width:15, height:15, accentColor:'#1D9E75' }} />
-                    <span style={{ fontSize:13, color:'#1A2421' }}>{p.icon} {p.name}</span>
+                    <span style={{ fontSize:13, color:'#1A2421', fontWeight:500 }}>{p.icon} {p.name}</span>
                   </div>
-                  <div style={{ display:'flex', gap:4 }}>
-                    {RATIO_OPTIONS.map(r => (
-                      <button key={r.value} onClick={e => { e.stopPropagation(); setPlatformRatio(prev => ({...prev, [p.id]: r.value})) }}
-                        style={{ padding:'3px 7px', borderRadius:10, border:`1px solid ${platformRatio[p.id]===r.value?'#1D9E75':'#E6EAE8'}`, background: platformRatio[p.id]===r.value?'#1D9E75':'#fff', color: platformRatio[p.id]===r.value?'#fff':'#6B7875', fontSize:10, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight: platformRatio[p.id]===r.value?700:400 }}>
-                        {r.label}
-                      </button>
-                    ))}
-                  </div>
+                  <span style={{ fontSize:11, color: selectedPlatforms.includes(p.id) ? '#0F6E56' : '#B0BAB6', fontWeight:600, background: selectedPlatforms.includes(p.id) ? '#C8EFE0' : '#F4F6F5', padding:'3px 8px', borderRadius:8 }}>
+                    {p.ratioLabel}
+                  </span>
                 </div>
               ))}
             </div>
@@ -544,13 +499,10 @@ export default function VideoPage() {
               <div style={{ fontSize:12, fontWeight:700, color:'#1A2421', marginBottom:8 }}>업로드 채널</div>
               {selectedPlatforms.map(pid => {
                 const p = PLATFORMS.find(x => x.id === pid)
-                const r = platformRatio[pid]
                 return (
                   <div key={pid} style={{ display:'flex', justifyContent:'space-between', fontSize:12, padding:'5px 0', borderBottom:'1px solid #E6EAE8' }}>
                     <span>{p?.icon} {p?.name}</span>
-                    <span style={{ color:'#6B7875', fontSize:11 }}>
-                      {r === 'both' ? '세로 + 가로 둘 다' : r === 'portrait' ? '세로 9:16' : '가로 16:9'}
-                    </span>
+                    <span style={{ color:'#6B7875', fontSize:11 }}>{p?.ratioLabel}</span>
                   </div>
                 )
               })}
