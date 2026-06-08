@@ -11,14 +11,13 @@ const BGM_LIST = [
   { id: 'luxury', name: '✨ 럭셔리' },
 ]
 
-const LANG_LIST = [
+// 한국어 필수 + 1개 선택 (이중자막)
+const SUB_LANG = [
   { code: 'en', flag: '🇺🇸', name: '영어' },
-  { code: 'zh', flag: '🇨🇳', name: '중국어' },
   { code: 'ja', flag: '🇯🇵', name: '일본어' },
-  { code: 'ko', flag: '🇰🇷', name: '한국어' },
+  { code: 'zh', flag: '🇨🇳', name: '중국어' },
 ]
 
-// ratio 고정 — 변경 불가
 const PLATFORMS = [
   { id: 'youtube_shorts', icon: '▶️', name: 'YouTube Shorts', ratio: 'portrait',  ratioLabel: '세로 9:16' },
   { id: 'instagram',      icon: '📸', name: 'Instagram 릴스',  ratio: 'portrait',  ratioLabel: '세로 9:16' },
@@ -26,11 +25,60 @@ const PLATFORMS = [
   { id: 'youtube',        icon: '📺', name: 'YouTube 일반',     ratio: 'landscape', ratioLabel: '가로 16:9' },
 ]
 
-async function buildVideo({ imgs, captionText, bgmType, isPortrait, onProgress }) {
+// 예시 프롬프트 (바이럴 카페/관광 영상 분석 기반)
+const PROMPT_EXAMPLES = [
+  {
+    title: '🌅 오션뷰 감성 강조',
+    text: '서귀포 모슬포항 오션뷰가 보이는 카페야. 바다와 카페 내부의 따뜻한 분위기가 부각되게, 첫 문장은 감성적인 한 줄 훅으로 시작해줘.',
+  },
+  {
+    title: '☕ 시그니처 메뉴 어필',
+    text: '한라봉 에이드가 시그니처인 제주 카페야. 메뉴의 상큼함과 비주얼이 먹고 싶어지게, 짧고 임팩트 있는 문장으로 만들어줘.',
+  },
+  {
+    title: '🏡 프라이빗 펜션 휴식',
+    text: '제주 동쪽 조용한 독채 펜션이야. 프라이빗하고 힐링되는 분위기를 강조하고, "이런 휴식 어때요?" 같은 질문형 훅으로 시작해줘.',
+  },
+]
+
+const SUB_INFO = `📌 예쁜 캡션을 위한 팁
+• 첫 문장은 '훅' — 감정을 자극하거나 질문형으로 (스크롤 멈추게)
+• 짧고 구체적으로 (장소·메뉴·분위기 키워드)
+• 한 문장에 하나의 메시지만`
+
+// 글자수 제한 (사진 장수 × 45자, 화면당 2줄 기준)
+const CHARS_PER_PHOTO = 45
+
+// 캡션에서 언어별 줄 추출
+function extractByLang(captionText, langCode) {
+  const lines = captionText.split('\n')
+  const markers = {
+    ko: ['한국어', '🇰🇷'],
+    en: ['영어', '🇺🇸', 'English'],
+    ja: ['일본어', '🇯🇵'],
+    zh: ['중국어', '🇨🇳'],
+  }
+  const target = markers[langCode] || []
+  let collecting = false
+  const result = []
+  for (const line of lines) {
+    const isHeader = /캡션:|英語|英语|日本語|中文|한국어|영어|일본어|중국어/.test(line) && line.length < 30
+    if (target.some(m => line.includes(m)) && isHeader) { collecting = true; continue }
+    if (isHeader && collecting) break  // 다음 언어 헤더 만나면 종료
+    if (collecting && line.trim() && !line.trim().startsWith('#')) {
+      result.push(line.replace(/[\uD83C][\uDDE6-\uDDFF][\uD83C][\uDDE6-\uDDFF]/g, '').trim())
+    }
+  }
+  return result.join(' ').trim()
+}
+
+async function buildVideo({ imgs, koText, subText, bgmType, isPortrait, onProgress }) {
   const W = isPortrait ? 1080 : 1920
   const H = isPortrait ? 1920 : 1080
   const PER_IMG = 3000
   const FPS = 24
+  // 안전영역: 하단 320px(틱톡 기준) 회피 → 자막을 그 위에 배치
+  const SAFE_BOTTOM = isPortrait ? 360 : 90
 
   const canvas = document.createElement('canvas')
   canvas.width = W; canvas.height = H
@@ -74,17 +122,41 @@ async function buildVideo({ imgs, captionText, bgmType, isPortrait, onProgress }
   recorder.ondataavailable = e => { if (e.data && e.data.size > 0) chunks.push(e.data) }
   recorder.start(200)
 
-  // 헤더줄("영어 캡션:", "us", "cn", "jp" 등) 건너뛰고 실제 캡션 첫 줄 사용
-  const firstLine = captionText
-    .split('\n')
-    .find(l => l.trim() && !l.includes('캡션:') && !l.match(/^[a-z]{2}\s/i))
-    ?.replace(/[\uD83C][\uDDE6-\uDDFF][\uD83C][\uDDE6-\uDDFF]/g, '').trim() || ''
+  // 텍스트를 사진 장수만큼 분할
+  function splitForImages(text, n) {
+    if (!text) return Array(n).fill('')
+    const perChunk = Math.ceil(text.length / n)
+    const chunks = []
+    for (let i = 0; i < n; i++) {
+      chunks.push(text.slice(i * perChunk, (i + 1) * perChunk).trim())
+    }
+    return chunks
+  }
+  const koChunks = splitForImages(koText, imgs.length)
+  const subChunks = splitForImages(subText, imgs.length)
+
+  // 줄바꿈 헬퍼
+  function wrapText(text, font, maxW) {
+    ctx.font = font
+    const lines = []
+    let line = ''
+    for (const ch of text) {
+      const test = line + ch
+      if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = ch }
+      else line = test
+    }
+    if (line) lines.push(line)
+    return lines.slice(0, 2)  // 언어당 최대 2줄
+  }
 
   const TOTAL_MS = imgs.length * PER_IMG
 
   for (let i = 0; i < imgs.length; i++) {
     const img = imgs[i]
+    const koLine = koChunks[i] || ''
+    const subLine = subChunks[i] || ''
     const frameStart = performance.now()
+
     await new Promise(resolve => {
       const drawFrame = () => {
         const elapsed = performance.now() - frameStart
@@ -98,35 +170,50 @@ async function buildVideo({ imgs, captionText, bgmType, isPortrait, onProgress }
         const dx = (W - dw) / 2 - (dw - W / scale) * t * 0.03
         const dy = (H - dh) / 2
         ctx.drawImage(img, dx, dy, dw, dh)
-        const grad = ctx.createLinearGradient(0, H * 0.5, 0, H)
-        grad.addColorStop(0, 'rgba(0,0,0,0)'); grad.addColorStop(1, 'rgba(0,0,0,0.72)')
+        const grad = ctx.createLinearGradient(0, H * 0.55, 0, H)
+        grad.addColorStop(0, 'rgba(0,0,0,0)'); grad.addColorStop(1, 'rgba(0,0,0,0.8)')
         ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H)
-        if (firstLine) {
-          const fadeIn  = Math.min(1, elapsed / 600)
-          const fadeOut = elapsed > PER_IMG - 600 ? Math.max(0, (PER_IMG - elapsed) / 600) : 1
-          const alpha   = fadeIn * fadeOut
-          const fontSize = isPortrait ? 54 : 40
-          ctx.save(); ctx.globalAlpha = alpha
-          ctx.font = `bold ${fontSize}px "Apple SD Gothic Neo", "Noto Sans KR", sans-serif`
-          ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'
-          ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 14
-          const maxW = W - 100
-          const words = firstLine.split('')
-          let line = '', lines = []
-          for (const ch of words) {
-            const test = line + ch
-            if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = ch }
-            else line = test
+
+        const fadeIn  = Math.min(1, elapsed / 600)
+        const fadeOut = elapsed > PER_IMG - 600 ? Math.max(0, (PER_IMG - elapsed) / 600) : 1
+        const alpha   = fadeIn * fadeOut
+
+        ctx.save(); ctx.globalAlpha = alpha
+        ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'
+        ctx.shadowColor = 'rgba(0,0,0,0.95)'; ctx.shadowBlur = 16
+
+        const koFont  = `bold ${isPortrait ? 52 : 38}px "Apple SD Gothic Neo", "Noto Sans KR", sans-serif`
+        const subFont = `600 ${isPortrait ? 40 : 30}px "Apple SD Gothic Neo", "Noto Sans KR", sans-serif`
+        const maxW = W - 90
+
+        const koLines  = koLine  ? wrapText(koLine, koFont, maxW) : []
+        const subLines = subLine ? wrapText(subLine, subFont, maxW) : []
+
+        const koLh  = (isPortrait ? 52 : 38) + 12
+        const subLh = (isPortrait ? 40 : 30) + 10
+        const gap = 16
+
+        const totalH = koLines.length * koLh + (subLines.length ? gap + subLines.length * subLh : 0)
+        let y = H - SAFE_BOTTOM
+
+        // 아래에서 위로: 외국어(보조) 먼저 그리고 그 위에 한국어
+        if (subLines.length) {
+          ctx.font = subFont; ctx.fillStyle = '#E8F4FF'
+          for (let li = subLines.length - 1; li >= 0; li--) {
+            ctx.fillText(subLines[li], W / 2, y)
+            y -= subLh
           }
-          if (line) lines.push(line)
-          const lh = fontSize + 10
-          const baseY = H - (isPortrait ? 180 : 100)
-          ctx.fillStyle = '#fff'
-          lines.slice(0, 3).forEach((l, li) => {
-            ctx.fillText(l, W / 2, baseY - (lines.length - 1 - li) * lh)
-          })
-          ctx.restore()
+          y -= gap
         }
+        if (koLines.length) {
+          ctx.font = koFont; ctx.fillStyle = '#fff'
+          for (let li = koLines.length - 1; li >= 0; li--) {
+            ctx.fillText(koLines[li], W / 2, y)
+            y -= koLh
+          }
+        }
+        ctx.restore()
+
         const progress = ((i * PER_IMG + elapsed) / TOTAL_MS) * 88
         onProgress(Math.min(progress, 88))
         if (elapsed < PER_IMG) requestAnimationFrame(drawFrame)
@@ -165,9 +252,17 @@ export default function VideoPage() {
   const [previews, setPreviews] = useState([])
   const [videoFile, setVideoFile] = useState(null)
   const [videoPreview, setVideoPreview] = useState(null)
-  const [caption, setCaption] = useState('')
+
+  // 캡션 방식: 'ai' | 'prompt' | 'manual'  (null이면 선택 카드 화면)
+  const [captionMode, setCaptionMode] = useState(null)
+  const [customPrompt, setCustomPrompt] = useState('')
+  const [manualKo, setManualKo] = useState('')      // 직접작성 한국어
+  const [manualSub, setManualSub] = useState('')    // 직접작성 외국어
+  const [caption, setCaption] = useState('')        // AI 생성 전체 캡션
+  const [manualMode, setManualMode] = useState(false) // 직접작성 영상인지 표시
   const [captionLoading, setCaptionLoading] = useState(false)
-  const [selectedLangs, setSelectedLangs] = useState(['en', 'zh'])
+
+  const [subLang, setSubLang] = useState('en')      // 보조 언어 (한국어는 고정)
   const [selectedBGM, setSelectedBGM] = useState('calm')
   const [selectedPlatforms, setSelectedPlatforms] = useState(['youtube_shorts'])
   const [generating, setGenerating] = useState(false)
@@ -180,6 +275,9 @@ export default function VideoPage() {
   const photoRef = useRef()
   const videoRef = useRef()
 
+  // 직접작성 글자수 한도 (사진 장수 기준)
+  const charLimit = Math.max(1, files.length) * CHARS_PER_PHOTO
+
   const handlePhotos = e => {
     const sel = Array.from(e.target.files)
     setFiles(p => [...p, ...sel])
@@ -189,20 +287,29 @@ export default function VideoPage() {
     const f = e.target.files[0]; if (!f) return
     setVideoFile(f); setVideoPreview(URL.createObjectURL(f))
   }
-  const toggleLang = code => setSelectedLangs(p => p.includes(code) ? p.filter(x => x !== code) : [...p, code])
   const togglePlatform = id => setSelectedPlatforms(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id])
 
-  const handleCaption = async () => {
-    setCaptionLoading(true)
+  // AI 자동생성 (가게정보 기반)
+  const runAICaption = async (prompt) => {
+    setManualMode(false)
+    setCaptionLoading(true); setStep(2)
     try {
       const s = await (await fetch('/api/shop')).json()
+      const body = { shopName: s.shop_name, shopLocation: s.shop_location, shopType: s.shop_type }
+      if (prompt) body.customPrompt = prompt
       const d = await (await fetch('/api/caption', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shopName: s.shop_name, shopLocation: s.shop_location, shopType: s.shop_type })
+        body: JSON.stringify(body)
       })).json()
       setCaption(d.result || '')
     } catch { setCaption('') }
     setCaptionLoading(false)
+  }
+
+  // 직접작성 → step2로 (영상 생성 단계)
+  const goManual = () => {
+    setManualMode(true)
+    setCaption('')  // AI 캡션 없음
     setStep(2)
   }
 
@@ -218,7 +325,16 @@ export default function VideoPage() {
         img.src = src
       })))
 
-      // 선택된 플랫폼들의 ratio로 필요한 영상 종류 결정
+      // 자막 텍스트 결정
+      let koText, subText
+      if (manualMode) {
+        koText = manualKo
+        subText = manualSub
+      } else {
+        koText = extractByLang(caption, 'ko') || caption.split('\n').find(l => l.trim() && !l.includes('캡션:'))?.trim() || ''
+        subText = extractByLang(caption, subLang)
+      }
+
       const ratios = selectedPlatforms.map(pid => PLATFORMS.find(p => p.id === pid)?.ratio)
       const needPortrait  = ratios.includes('portrait')
       const needLandscape = ratios.includes('landscape')
@@ -227,16 +343,15 @@ export default function VideoPage() {
       if (needPortrait) {
         setGenMsg('📱 세로 영상 제작 중...')
         const blob = await buildVideo({
-          imgs, captionText: caption, bgmType: selectedBGM, isPortrait: true,
+          imgs, koText, subText, bgmType: selectedBGM, isPortrait: true,
           onProgress: p => setGenProgress(needLandscape ? p * 0.5 : p)
         })
         result.portrait = { blob, url: URL.createObjectURL(blob) }
       }
-
       if (needLandscape) {
         setGenMsg('🖥️ 가로 영상 제작 중...')
         const blob = await buildVideo({
-          imgs, captionText: caption, bgmType: selectedBGM, isPortrait: false,
+          imgs, koText, subText, bgmType: selectedBGM, isPortrait: false,
           onProgress: p => setGenProgress(needPortrait ? 50 + p * 0.5 : p)
         })
         result.landscape = { blob, url: URL.createObjectURL(blob) }
@@ -265,8 +380,9 @@ export default function VideoPage() {
 
       const form = new FormData()
       const isShorts = platform.ratio === 'portrait'
+      const uploadCaption = manualMode ? `${manualKo}\n${manualSub}` : caption
       form.append('video', blob, `gorang-${platform.ratio}.mp4`)
-      form.append('caption', caption)
+      form.append('caption', uploadCaption)
       form.append('title', `고랑AI - ${platform.ratio === 'portrait' ? '세로' : '가로'} - ${new Date().toLocaleDateString('ko')}`)
       form.append('isShorts', isShorts ? 'true' : 'false')
 
@@ -292,9 +408,15 @@ export default function VideoPage() {
     setStep(1); setMode(null); setFiles([]); setPreviews([])
     setCaption(''); setVideos({ portrait: null, landscape: null })
     setVideoFile(null); setVideoPreview(null); setUploadResults([])
-    setGenError(''); setGenProgress(0)
+    setGenError(''); setGenProgress(0); setCaptionMode(null)
+    setCustomPrompt(''); setManualKo(''); setManualSub(''); setManualMode(false)
   }
 
+  const goBackToCaptionSelect = () => {
+    setCaptionMode(null); setCustomPrompt('')
+  }
+
+  // ── step 4: 완료 ──
   if (step === 4) return (
     <div style={{ flex:1, display:'flex', flexDirection:'column', padding:'32px 24px', alignItems:'center' }}>
       <div style={{ fontSize:40, marginBottom:12 }}>🎉</div>
@@ -316,14 +438,15 @@ export default function VideoPage() {
 
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column' }}>
-      <TopBar title="영상 만들기" sub={!mode ? '제작 방식 선택' : step===1 ? '설정' : step===2 ? '캡션 확인' : '미리보기'} />
+      <TopBar title="영상 만들기" sub={!mode ? '제작 방식 선택' : step===1 ? '설정' : step===2 ? (manualMode ? '캡션 작성' : '캡션 확인') : '미리보기'} />
       <div style={{ flex:1, padding:'0 18px 24px', overflowY:'auto' }}>
 
+        {/* ── 제작 방식 선택 ── */}
         {!mode && (
           <>
             {[
-              { id:'photos', emoji:'📸', title:'사진으로 영상 만들기', sub:'사진 여러 장 → BGM + 자막 + 영상 자동 제작' },
-              { id:'existing', emoji:'🎬', title:'내 영상 올리기', sub:'직접 만든 영상을 업로드' },
+              { id:'photos',   emoji:'📸', title:'사진으로 영상 만들기', sub:'사진 여러 장 → BGM + 자막 + 영상 자동 제작' },
+              { id:'existing', emoji:'🎬', title:'내 영상 올리기',        sub:'직접 만든 영상을 업로드' },
             ].map(m => (
               <div key={m.id} onClick={() => setMode(m.id)}
                 style={{ border:'1.5px solid #E6EAE8', borderRadius:14, padding:'16px', marginBottom:10, cursor:'pointer', display:'flex', alignItems:'center', gap:14 }}>
@@ -337,7 +460,8 @@ export default function VideoPage() {
           </>
         )}
 
-        {mode && step === 1 && (
+        {/* ── step 1: 설정 + 캡션 방식 ── */}
+        {mode && step === 1 && captionMode === null && (
           <>
             {mode === 'photos' && (
               <>
@@ -378,7 +502,7 @@ export default function VideoPage() {
               </>
             )}
 
-            {/* 플랫폼 선택 - 비율 고정 표시 */}
+            {/* 플랫폼 */}
             <div style={{ marginBottom:14 }}>
               <div style={{ fontSize:11, color:'#6B7875', fontWeight:500, marginBottom:8 }}>📤 업로드 플랫폼</div>
               {PLATFORMS.map(p => (
@@ -388,7 +512,7 @@ export default function VideoPage() {
                     <input type="checkbox" checked={selectedPlatforms.includes(p.id)} readOnly style={{ width:15, height:15, accentColor:'#1D9E75' }} />
                     <span style={{ fontSize:13, color:'#1A2421', fontWeight:500 }}>{p.icon} {p.name}</span>
                   </div>
-                  <span style={{ fontSize:11, color: selectedPlatforms.includes(p.id) ? '#0F6E56' : '#B0BAB6', fontWeight:600, background: selectedPlatforms.includes(p.id) ? '#C8EFE0' : '#F4F6F5', padding:'3px 8px', borderRadius:8 }}>
+                  <span style={{ fontSize:11, color: selectedPlatforms.includes(p.id)?'#0F6E56':'#B0BAB6', fontWeight:600, background: selectedPlatforms.includes(p.id)?'#C8EFE0':'#F4F6F5', padding:'3px 8px', borderRadius:8 }}>
                     {p.ratioLabel}
                   </span>
                 </div>
@@ -408,48 +532,151 @@ export default function VideoPage() {
               </div>
             </div>
 
-            {/* 자막 */}
+            {/* 자막 언어 — 한국어 고정 + 1개 선택 */}
             <div style={{ marginBottom:16 }}>
-              <div style={{ fontSize:11, color:'#6B7875', fontWeight:500, marginBottom:8 }}>💬 자막 언어</div>
-              <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
-                <button onClick={() => setSelectedLangs([])}
-                  style={{ padding:'6px 12px', borderRadius:20, border:`1.5px solid ${!selectedLangs.length?'#5DCAA5':'#E6EAE8'}`, background: !selectedLangs.length?'#E1F5EE':'#fff', color: !selectedLangs.length?'#0F6E56':'#6B7875', fontSize:12, fontWeight:500, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                  없음
-                </button>
-                {LANG_LIST.map(l => (
-                  <button key={l.code} onClick={() => toggleLang(l.code)}
-                    style={{ padding:'6px 12px', borderRadius:20, border:`1.5px solid ${selectedLangs.includes(l.code)?'#5DCAA5':'#E6EAE8'}`, background: selectedLangs.includes(l.code)?'#E1F5EE':'#fff', color: selectedLangs.includes(l.code)?'#0F6E56':'#6B7875', fontSize:12, fontWeight:500, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+              <div style={{ fontSize:11, color:'#6B7875', fontWeight:500, marginBottom:8 }}>💬 자막 언어 <span style={{ color:'#B0BAB6' }}>(한국어 + 1개)</span></div>
+              <div style={{ display:'flex', flexWrap:'wrap', gap:6, alignItems:'center' }}>
+                <span style={{ padding:'6px 12px', borderRadius:20, background:'#1D9E75', color:'#fff', fontSize:12, fontWeight:600 }}>🇰🇷 한국어 (필수)</span>
+                <span style={{ color:'#B0BAB6', fontSize:13 }}>+</span>
+                {SUB_LANG.map(l => (
+                  <button key={l.code} onClick={() => setSubLang(l.code)}
+                    style={{ padding:'6px 12px', borderRadius:20, border:`1.5px solid ${subLang===l.code?'#5DCAA5':'#E6EAE8'}`, background: subLang===l.code?'#E1F5EE':'#fff', color: subLang===l.code?'#0F6E56':'#6B7875', fontSize:12, fontWeight:500, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                     {l.flag} {l.name}
                   </button>
                 ))}
               </div>
             </div>
 
-            <PrimaryBtn onClick={handleCaption} disabled={mode==='photos'?!files.length:!videoFile}>
-              ✦ AI 캡션 생성하기
-            </PrimaryBtn>
+            {/* 캡션 방식 카드 */}
+            <div style={{ marginBottom:8 }}>
+              <div style={{ fontSize:11, color:'#6B7875', fontWeight:500, marginBottom:8 }}>✦ 캡션 방식 선택</div>
+              {[
+                { id:'ai',     emoji:'🤖', title:'AI 자동생성',         sub:'가게 정보로 AI가 알아서 작성' },
+                { id:'prompt', emoji:'💡', title:'프롬프트로 캡션 만들기', sub:'원하는 방향을 입력하면 AI가 맞춰서 생성' },
+                { id:'manual', emoji:'✏️', title:'설명문구 직접 쓰기',     sub:'내가 쓴 문구 그대로 자막으로' },
+              ].map(c => (
+                <div key={c.id} onClick={() => {
+                    if (c.id === 'ai') { runAICaption(null) }
+                    else { setCaptionMode(c.id) }
+                  }}
+                  style={{ display:'flex', alignItems:'center', gap:12, padding:'14px 14px', marginBottom:8, borderRadius:12, border:'1.5px solid #E6EAE8', background:'#fff', cursor: (mode==='photos'?!files.length:!videoFile) ? 'not-allowed' : 'pointer', opacity: (mode==='photos'?!files.length:!videoFile) ? 0.5 : 1, pointerEvents: (mode==='photos'?!files.length:!videoFile) ? 'none' : 'auto' }}>
+                  <div style={{ fontSize:24 }}>{c.emoji}</div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:13.5, fontWeight:700, color:'#1A2421' }}>{c.title}</div>
+                    <div style={{ fontSize:11, color:'#6B7875', marginTop:1 }}>{c.sub}</div>
+                  </div>
+                  <span style={{ color:'#B0BAB6', fontSize:18 }}>›</span>
+                </div>
+              ))}
+              {(mode==='photos'?!files.length:!videoFile) && (
+                <div style={{ fontSize:11, color:'#EF9F27', textAlign:'center', marginTop:4 }}>
+                  ↑ 먼저 {mode==='photos' ? '사진을' : '영상을'} 추가해주세요
+                </div>
+              )}
+            </div>
+
             <GhostBtn onClick={() => setMode(null)} style={{ marginTop:8 }}>← 돌아가기</GhostBtn>
           </>
         )}
 
+        {/* ── step 1 하위: 프롬프트 작성 페이지 ── */}
+        {mode && step === 1 && captionMode === 'prompt' && (
+          <>
+            <div style={{ background:'#F4F6F5', borderRadius:12, padding:'12px 14px', marginBottom:14, fontSize:11.5, color:'#3A4744', whiteSpace:'pre-line', lineHeight:1.6 }}>
+              {SUB_INFO}
+            </div>
+
+            <div style={{ fontSize:12, fontWeight:600, color:'#1A2421', marginBottom:8 }}>💡 어떤 캡션을 원하세요?</div>
+            <textarea
+              value={customPrompt}
+              onChange={e => setCustomPrompt(e.target.value)}
+              placeholder="예) 서귀포 모슬포항 오션뷰가 보이는 카페야. 오션뷰랑 카페 분위기가 부각되게 캡션 만들어줘"
+              style={{ width:'100%', minHeight:100, padding:'12px', borderRadius:10, border:'1.5px solid #5DCAA5', fontSize:13, color:'#1A2421', fontFamily:'Noto Sans KR, sans-serif', resize:'vertical', boxSizing:'border-box', outline:'none', lineHeight:1.5 }}
+            />
+
+            <div style={{ fontSize:11, color:'#6B7875', fontWeight:500, margin:'16px 0 8px' }}>✨ 예시 프롬프트 (탭하면 채워져요)</div>
+            {PROMPT_EXAMPLES.map((ex, i) => (
+              <div key={i} onClick={() => setCustomPrompt(ex.text)}
+                style={{ border:'1px solid #E6EAE8', borderRadius:10, padding:'10px 12px', marginBottom:6, cursor:'pointer', background:'#fff' }}>
+                <div style={{ fontSize:12, fontWeight:600, color:'#0F6E56', marginBottom:3 }}>{ex.title}</div>
+                <div style={{ fontSize:11, color:'#6B7875', lineHeight:1.4 }}>{ex.text}</div>
+              </div>
+            ))}
+
+            <PrimaryBtn onClick={() => runAICaption(customPrompt)} disabled={!customPrompt.trim()} style={{ marginTop:14 }}>
+              💡 이 프롬프트로 캡션 생성하기
+            </PrimaryBtn>
+            <GhostBtn onClick={goBackToCaptionSelect} style={{ marginTop:8 }}>← 캡션 방식 다시 선택</GhostBtn>
+          </>
+        )}
+
+        {/* ── step 1 하위: 직접 작성 페이지 ── */}
+        {mode && step === 1 && captionMode === 'manual' && (
+          <>
+            <div style={{ background:'#F4F6F5', borderRadius:12, padding:'12px 14px', marginBottom:14, fontSize:11.5, color:'#3A4744', lineHeight:1.6 }}>
+              ✏️ 입력한 문구가 그대로 자막으로 들어가요.<br/>
+              화면당 2줄이 깔끔해서 <b>최대 {charLimit}자</b>까지 가능해요 (사진 {Math.max(1,files.length)}장 기준)
+            </div>
+
+            <div style={{ fontSize:12, fontWeight:600, color:'#1A2421', marginBottom:6 }}>🇰🇷 한국어 자막</div>
+            <textarea
+              value={manualKo}
+              onChange={e => { if (e.target.value.length <= charLimit) setManualKo(e.target.value) }}
+              placeholder="예) 바다가 보이는 그 카페, 오늘도 당신을 기다려요"
+              style={{ width:'100%', minHeight:70, padding:'12px', borderRadius:10, border:'1.5px solid #5DCAA5', fontSize:13, color:'#1A2421', fontFamily:'Noto Sans KR, sans-serif', resize:'vertical', boxSizing:'border-box', outline:'none', lineHeight:1.5 }}
+            />
+            <div style={{ fontSize:11, color: manualKo.length >= charLimit ? '#EF9F27' : '#B0BAB6', textAlign:'right', marginTop:3 }}>
+              {manualKo.length} / {charLimit}자
+            </div>
+
+            <div style={{ fontSize:12, fontWeight:600, color:'#1A2421', margin:'14px 0 6px' }}>
+              {SUB_LANG.find(l => l.code === subLang)?.flag} {SUB_LANG.find(l => l.code === subLang)?.name} 자막 <span style={{ color:'#B0BAB6', fontWeight:400 }}>(선택)</span>
+            </div>
+            <textarea
+              value={manualSub}
+              onChange={e => { if (e.target.value.length <= charLimit) setManualSub(e.target.value) }}
+              placeholder="외국어 자막을 직접 입력 (비워두면 한국어만 표시)"
+              style={{ width:'100%', minHeight:70, padding:'12px', borderRadius:10, border:'1.5px solid #E6EAE8', fontSize:13, color:'#1A2421', fontFamily:'Noto Sans KR, sans-serif', resize:'vertical', boxSizing:'border-box', outline:'none', lineHeight:1.5 }}
+            />
+            <div style={{ fontSize:11, color: manualSub.length >= charLimit ? '#EF9F27' : '#B0BAB6', textAlign:'right', marginTop:3 }}>
+              {manualSub.length} / {charLimit}자
+            </div>
+
+            <PrimaryBtn onClick={goManual} disabled={!manualKo.trim()} style={{ marginTop:14 }}>
+              ✏️ 작성 완료 → 영상 만들기
+            </PrimaryBtn>
+            <GhostBtn onClick={goBackToCaptionSelect} style={{ marginTop:8 }}>← 캡션 방식 다시 선택</GhostBtn>
+          </>
+        )}
+
+        {/* ── step 2: 캡션 확인(AI) / 영상 만들기 ── */}
         {step === 2 && (
           <>
-            {captionLoading
+            {!manualMode && (captionLoading
               ? <div style={{ background:'#E1F5EE', borderRadius:14, padding:16, border:'1.5px solid #5DCAA5', marginBottom:12 }}>
                   <div style={{ fontSize:10, color:'#0F6E56', fontWeight:700, marginBottom:8 }}>✦ AI 캡션 생성 중...</div>
                   <LoadingDots />
                 </div>
               : <>
-                  <AiBox label="✦ AI 생성 캡션 (자막으로 사용)">{caption || '캡션이 없어요. 직접 입력해 주세요.'}</AiBox>
+                  <AiBox label="✦ AI 생성 캡션">{caption || '캡션이 없어요.'}</AiBox>
                   <div style={{ display:'flex', gap:8, marginBottom:14 }}>
-                    <GhostBtn onClick={handleCaption} style={{ flex:1, padding:'10px', fontSize:12 }}>↻ 다시 생성</GhostBtn>
-                    <button onClick={() => { const t = prompt('자막 수정:', caption); if(t!==null) setCaption(t) }}
+                    <GhostBtn onClick={() => runAICaption(customPrompt || null)} style={{ flex:1, padding:'10px', fontSize:12 }}>↻ 다시 생성</GhostBtn>
+                    <button onClick={() => { const t = prompt('캡션 수정:', caption); if(t!==null) setCaption(t) }}
                       style={{ flex:1, padding:10, borderRadius:14, border:'1.5px solid #1D9E75', background:'transparent', color:'#1D9E75', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                       ✎ 직접 수정
                     </button>
                   </div>
                 </>
-            }
+            )}
+
+            {manualMode && (
+              <div style={{ background:'#E1F5EE', borderRadius:14, padding:16, border:'1.5px solid #5DCAA5', marginBottom:14 }}>
+                <div style={{ fontSize:11, color:'#0F6E56', fontWeight:700, marginBottom:8 }}>✏️ 직접 작성한 자막</div>
+                <div style={{ fontSize:13, color:'#1A2421', marginBottom:6 }}>🇰🇷 {manualKo}</div>
+                {manualSub && <div style={{ fontSize:13, color:'#3A4744' }}>{SUB_LANG.find(l=>l.code===subLang)?.flag} {manualSub}</div>}
+                <GhostBtn onClick={() => { setStep(1); setCaptionMode('manual') }} style={{ marginTop:10, padding:'8px', fontSize:12 }}>✎ 자막 수정</GhostBtn>
+              </div>
+            )}
 
             {generating && (
               <div style={{ background:'#E1F5EE', borderRadius:14, padding:16, marginBottom:14, border:'1.5px solid #5DCAA5' }}>
@@ -472,10 +699,11 @@ export default function VideoPage() {
                 ? <PrimaryBtn onClick={handleGenerate} disabled={!files.length}>🎬 영상 만들기 시작</PrimaryBtn>
                 : <PrimaryBtn onClick={() => setStep(3)}>다음 → 업로드 확인</PrimaryBtn>
             )}
-            <GhostBtn onClick={() => setStep(1)} style={{ marginTop:8 }}>← 돌아가기</GhostBtn>
+            <GhostBtn onClick={() => { setStep(1); if(!manualMode) setCaptionMode(null) }} style={{ marginTop:8 }}>← 돌아가기</GhostBtn>
           </>
         )}
 
+        {/* ── step 3: 미리보기 + 업로드 ── */}
         {step === 3 && (
           <>
             {videos.portrait && (
