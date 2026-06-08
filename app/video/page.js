@@ -74,8 +74,10 @@ async function buildVideo({ imgs, captionText, bgmType, isPortrait, onProgress }
   recorder.ondataavailable = e => { if (e.data && e.data.size > 0) chunks.push(e.data) }
   recorder.start(200)
 
+  // 헤더줄("영어 캡션:", "us", "cn", "jp" 등) 건너뛰고 실제 캡션 첫 줄 사용
   const firstLine = captionText
-    .split('\n').find(l => l.trim())
+    .split('\n')
+    .find(l => l.trim() && !l.includes('캡션:') && !l.match(/^[a-z]{2}\s/i))
     ?.replace(/[\uD83C][\uDDE6-\uDDFF][\uD83C][\uDDE6-\uDDFF]/g, '').trim() || ''
 
   const TOTAL_MS = imgs.length * PER_IMG
