@@ -4,12 +4,25 @@ import { useRouter } from 'next/navigation'
 import { BottomNav, TopBar, PrimaryBtn, GhostBtn, AiBox, LoadingDots } from '../../components/ui'
 
 const BGM_LIST = [
-  { id: 'none',   name: '🔇 없음' },
-  { id: 'calm',   name: '🌊 잔잔한 감성' },
-  { id: 'bright', name: '☀️ 밝고 경쾌한' },
-  { id: 'jeju',   name: '🌿 제주 자연' },
-  { id: 'luxury', name: '✨ 럭셔리' },
+  { id: 'auto',    name: '✨ AI 자동 선택' },
+  { id: 'none',    name: '🔇 없음' },
+  { id: 'ocean',   name: '🌊 오션뷰' },
+  { id: 'cafe',    name: '☕ 카페 감성' },
+  { id: 'lofi',    name: '🎧 Lo-fi 무드' },
+  { id: 'luxury',  name: '💎 럭셔리' },
+  { id: 'bright',  name: '☀️ 밝고 경쾌' },
+  { id: 'night',   name: '🌙 야경/저녁' },
 ]
+
+// 태그별 Supabase BGM 파일 목록
+const BGM_FILES = {
+  ocean:   ['bgm-ocean.mp3', 'bgm-ocean1.mp3'],
+  cafe:    ['bgm-cafe.mp3', 'bgm-cafe1.mp3', 'bgm-cafe2.mp3', 'bgm-cafe3.mp3'],
+  lofi:    ['bgm-lofi.mp3', 'bgm-lofi1.mp3'],
+  luxury:  ['bgm-luxury.mp3', 'bgm-luxury1.mp3'],
+  bright:  ['bgm-bright.mp3', 'bgm-bright1.mp3', 'bgm-bright2.mp3', 'bgm-bright3.mp3'],
+  night:   ['bgm-night.mp3'],
+}
 
 // 한국어 필수 + 1개 선택 (이중자막)
 const SUB_LANG = [
@@ -91,71 +104,27 @@ async function buildVideo({ imgs, koText, subText, bgmType, isPortrait, onProgre
   canvas.width = W; canvas.height = H
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
 
-  // ── BGM: Web Audio API로 실제 음악처럼 들리는 화음+멜로디 ──
+  // ── BGM: Supabase 실제 mp3 fetch ──
   let audioCtx = null, stopBGM = null, audioTrack = null
   if (bgmType && bgmType !== 'none') {
     try {
+      const bgmUrl = bgmType  // buildVideo 호출 시 이미 URL로 넘어옴
+      const resp = await fetch(bgmUrl)
+      const arrayBuf = await resp.arrayBuffer()
       audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+      const audioBuf = await audioCtx.decodeAudioData(arrayBuf)
       const dest = audioCtx.createMediaStreamDestination()
       const master = audioCtx.createGain()
-      master.gain.value = 0.15
+      master.gain.value = 0.85
       master.connect(dest); master.connect(audioCtx.destination)
-
-      // 리버브 효과 (공간감)
-      const convolver = audioCtx.createConvolver()
-      const revLen = audioCtx.sampleRate * 2
-      const revBuf = audioCtx.createBuffer(2, revLen, audioCtx.sampleRate)
-      for (let ch = 0; ch < 2; ch++) {
-        const d = revBuf.getChannelData(ch)
-        for (let j = 0; j < revLen; j++) d[j] = (Math.random() * 2 - 1) * Math.pow(1 - j / revLen, 2)
-      }
-      convolver.buffer = revBuf
-      const reverbGain = audioCtx.createGain(); reverbGain.gain.value = 0.25
-      convolver.connect(reverbGain); reverbGain.connect(master)
-
-      // 악기 음색별 프리셋 (화음 + 베이스)
-      const presets = {
-        calm:   { chords: [[220,277,330],[196,247,294],[174,220,261],[185,233,277]], bass:[110,98,87,93], wave:'sine' },
-        bright: { chords: [[261,329,392],[294,370,440],[330,415,494],[349,440,523]], bass:[130,147,165,174], wave:'triangle' },
-        jeju:   { chords: [[196,247,294],[220,277,330],[185,233,277],[207,261,311]], bass:[98,110,93,103], wave:'sine' },
-        luxury: { chords: [[174,220,261],[155,196,233],[164,207,247],[174,220,261]], bass:[87,77,82,87], wave:'sine' },
-      }
-      const preset = presets[bgmType] || presets.calm
-      const totalDur = imgs.length * PER_IMG / 1000
-      const chordDur = totalDur / preset.chords.length
-
-      const allOscs = []
-      preset.chords.forEach((chord, ci) => {
-        const startT = audioCtx.currentTime + ci * chordDur
-        // 화음 각 음
-        chord.forEach(freq => {
-          const osc = audioCtx.createOscillator()
-          const g = audioCtx.createGain()
-          osc.type = preset.wave; osc.frequency.value = freq
-          g.gain.setValueAtTime(0, startT)
-          g.gain.linearRampToValueAtTime(0.18, startT + 0.3)
-          g.gain.linearRampToValueAtTime(0.14, startT + chordDur - 0.3)
-          g.gain.linearRampToValueAtTime(0, startT + chordDur)
-          osc.connect(g); g.connect(master); g.connect(convolver)
-          osc.start(startT); osc.stop(startT + chordDur)
-          allOscs.push(osc)
-        })
-        // 베이스
-        const bass = audioCtx.createOscillator()
-        const bg = audioCtx.createGain()
-        bass.type = 'sine'; bass.frequency.value = preset.bass[ci]
-        bg.gain.setValueAtTime(0, startT)
-        bg.gain.linearRampToValueAtTime(0.22, startT + 0.1)
-        bg.gain.linearRampToValueAtTime(0.18, startT + chordDur - 0.2)
-        bg.gain.linearRampToValueAtTime(0, startT + chordDur)
-        bass.connect(bg); bg.connect(master)
-        bass.start(startT); bass.stop(startT + chordDur)
-        allOscs.push(bass)
-      })
-
-      stopBGM = () => allOscs.forEach(o => { try { o.stop() } catch {} })
+      const source = audioCtx.createBufferSource()
+      source.buffer = audioBuf
+      source.loop = true
+      source.connect(master)
+      source.start(0)
+      stopBGM = () => { try { source.stop() } catch {} }
       audioTrack = dest.stream.getAudioTracks()[0]
-    } catch (e) { console.warn('BGM 생성 실패:', e) }
+    } catch (e) { console.warn('BGM 로드 실패:', e) }
   }
 
   const videoStream = canvas.captureStream(FPS)
@@ -389,7 +358,7 @@ export default function VideoPage() {
   const [captionLoading, setCaptionLoading] = useState(false)
 
   const [subLang, setSubLang] = useState('en')      // 보조 언어 (한국어는 고정)
-  const [selectedBGM, setSelectedBGM] = useState('calm')
+  const [selectedBGM, setSelectedBGM] = useState('auto')
   const [selectedPlatforms, setSelectedPlatforms] = useState(['youtube_shorts'])
   const [generating, setGenerating] = useState(false)
   const [genProgress, setGenProgress] = useState(0)
@@ -461,6 +430,34 @@ export default function VideoPage() {
         subText = extractByLang(caption, subLang)
       }
 
+      // ── BGM URL 결정 (AI 자동 or 직접 선택) ──
+      let bgmUrl = null
+      if (selectedBGM === 'none') {
+        bgmUrl = null
+      } else if (selectedBGM === 'auto') {
+        setGenMsg('🎵 사진 분위기 분석 중...')
+        try {
+          const res = await fetch('/api/analyze-bgm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imageUrls: previews.slice(0, 1) })
+          })
+          const data = await res.json()
+          bgmUrl = data.bgmUrl
+          setGenMsg(`🎵 BGM 선택됨: ${data.tag || 'cafe'} 무드`)
+        } catch {
+          // fallback: cafe 랜덤
+          const fallbacks = ['bgm-cafe.mp3', 'bgm-cafe1.mp3', 'bgm-cafe2.mp3', 'bgm-cafe3.mp3']
+          const f = fallbacks[Math.floor(Math.random() * fallbacks.length)]
+          bgmUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/BGM/${f}`
+        }
+      } else {
+        // 직접 선택 시 해당 태그에서 랜덤
+        const files = BGM_FILES[selectedBGM] || BGM_FILES.cafe
+        const picked = files[Math.floor(Math.random() * files.length)]
+        bgmUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/BGM/${picked}`
+      }
+
       const ratios = selectedPlatforms.map(pid => PLATFORMS.find(p => p.id === pid)?.ratio)
       const needPortrait  = ratios.includes('portrait')
       const needLandscape = ratios.includes('landscape')
@@ -469,7 +466,7 @@ export default function VideoPage() {
       if (needPortrait) {
         setGenMsg('📱 세로 영상 제작 중...')
         const blob = await buildVideo({
-          imgs, koText, subText, bgmType: selectedBGM, isPortrait: true,
+          imgs, koText, subText, bgmType: bgmUrl, isPortrait: true,
           onProgress: p => setGenProgress(needLandscape ? p * 0.5 : p)
         })
         result.portrait = { blob, url: URL.createObjectURL(blob) }
@@ -477,7 +474,7 @@ export default function VideoPage() {
       if (needLandscape) {
         setGenMsg('🖥️ 가로 영상 제작 중...')
         const blob = await buildVideo({
-          imgs, koText, subText, bgmType: selectedBGM, isPortrait: false,
+          imgs, koText, subText, bgmType: bgmUrl, isPortrait: false,
           onProgress: p => setGenProgress(needPortrait ? 50 + p * 0.5 : p)
         })
         result.landscape = { blob, url: URL.createObjectURL(blob) }
