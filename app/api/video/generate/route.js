@@ -208,7 +208,7 @@ export async function POST(request) {
     const outputId = `gorang_out_${uid}_${ts}`
     const videoResult = await new Promise((resolve, reject) => {
       cloudinary.uploader.upload(
-        `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/image/upload/${pids[0]}`,
+        `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/image/upload/f_png/${pids[0]}`,  // f_png: JPEG→PNG 변환 후 video 업로드 (JPEG는 video 불가)
         {
           public_id:     outputId,
           resource_type: 'video',
