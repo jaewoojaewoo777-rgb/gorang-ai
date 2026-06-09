@@ -52,19 +52,26 @@ const CHARS_PER_PHOTO = 45
 // 캡션에서 언어별 줄 추출
 function extractByLang(captionText, langCode) {
   const lines = captionText.split('\n')
+  // AI 출력의 모든 헤더 변형 커버 (KR, 🇰🇷, 한국어, Korean 등)
   const markers = {
-    ko: ['한국어', '🇰🇷', 'Korean'],
-    en: ['영어', '🇺🇸', 'English'],
-    ja: ['일본어', '🇯🇵', 'Japanese'],
-    zh: ['중국어', '🇨🇳', 'Chinese'],
+    ko: ['한국어', '🇰🇷', 'Korean', 'KR'],
+    en: ['영어', '🇺🇸', 'English', 'US'],
+    ja: ['일본어', '🇯🇵', 'Japanese', 'JP', '日本語'],
+    zh: ['중국어', '🇨🇳', 'Chinese', 'CN', '中文'],
   }
+  const allMarkers = Object.values(markers).flat()
   const target = markers[langCode] || []
+
+  // 헤더 줄 판별: 모든 언어 마커 중 하나 포함 + 짧은 줄
+  const isHeaderLine = (line) =>
+    line.length < 60 && allMarkers.some(m => line.includes(m))
+
   let collecting = false
   const result = []
   for (const line of lines) {
-    const isHeader = /캡션:|英語|英语|日本語|中文|한국어|영어|일본어|중국어|Korean|English|Japanese|Chinese/.test(line) && line.length < 40
-    if (target.some(m => line.includes(m)) && isHeader) { collecting = true; continue }
-    if (isHeader && collecting) break  // 다음 언어 헤더 만나면 종료
+    const isHeader = isHeaderLine(line)
+    if (isHeader && target.some(m => line.includes(m))) { collecting = true; continue }
+    if (isHeader && collecting) break
     if (collecting && line.trim() && !line.trim().startsWith('#')) {
       result.push(line.replace(/[\uD83C][\uDDE6-\uDDFF][\uD83C][\uDDE6-\uDDFF]/g, '').trim())
     }
@@ -673,13 +680,22 @@ export default function VideoPage() {
                 </div>
               : <>
                   <div style={{ background:'#E1F5EE', borderRadius:14, padding:16, border:'1.5px solid #5DCAA5', marginBottom:12 }}>
-                    <div style={{ fontSize:10, color:'#0F6E56', fontWeight:700, marginBottom:10 }}>✦ AI 생성 캡션</div>
-                    <div style={{ fontSize:13, color:'#1A2421', marginBottom:8, lineHeight:1.6 }}>
-                      <span style={{ fontWeight:700 }}>🇰🇷</span> {extractByLang(caption, 'ko') || '한국어 캡션 생성 중...'}
+                    <div style={{ fontSize:10, color:'#0F6E56', fontWeight:700, marginBottom:12 }}>✦ AI 생성 캡션</div>
+                    {/* 한국어 고정 */}
+                    <div style={{ marginBottom:10 }}>
+                      <div style={{ fontSize:11, color:'#6B7875', fontWeight:600, marginBottom:4 }}>🇰🇷 한국어</div>
+                      <div style={{ fontSize:13, color:'#1A2421', lineHeight:1.6 }}>
+                        {extractByLang(caption, 'ko') || '한국어 캡션을 불러오는 중...'}
+                      </div>
                     </div>
-                    <div style={{ fontSize:13, color:'#3A4744', lineHeight:1.6 }}>
-                      <span style={{ fontWeight:700 }}>{SUB_LANG.find(l=>l.code===subLang)?.flag}</span>{' '}
-                      {extractByLang(caption, subLang) || `${SUB_LANG.find(l=>l.code===subLang)?.name} 캡션 생성 중...`}
+                    {/* 선택한 외국어만 */}
+                    <div style={{ borderTop:'1px solid rgba(0,0,0,0.06)', paddingTop:10 }}>
+                      <div style={{ fontSize:11, color:'#6B7875', fontWeight:600, marginBottom:4 }}>
+                        {SUB_LANG.find(l=>l.code===subLang)?.flag} {SUB_LANG.find(l=>l.code===subLang)?.name}
+                      </div>
+                      <div style={{ fontSize:13, color:'#3A4744', lineHeight:1.6 }}>
+                        {extractByLang(caption, subLang) || `${SUB_LANG.find(l=>l.code===subLang)?.name} 캡션을 불러오는 중...`}
+                      </div>
                     </div>
                   </div>
                   <div style={{ display:'flex', gap:8, marginBottom:14 }}>
