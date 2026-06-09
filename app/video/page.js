@@ -572,7 +572,7 @@ export default function VideoPage() {
           img.crossOrigin = 'anonymous'
           img.onload = () => {
             const canvas = document.createElement('canvas')
-            // Cloudinary 업로드용: 최대 1200px, JPEG 0.80 (용량 최소화)
+            // 최대 1920px로 제한 (업로드 크기 줄임)
             const maxSize = 1200
             let w = img.naturalWidth, h = img.naturalHeight
             if (w > maxSize || h > maxSize) {
