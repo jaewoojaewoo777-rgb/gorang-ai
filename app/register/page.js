@@ -24,26 +24,53 @@ export default function RegisterPage() {
     else alert('저장 실패. 다시 시도해주세요.')
   }
 
+  const TYPES = [
+    { id: 'pension',    emoji: '🏕️', label: '펜션' },
+    { id: 'cafe',       emoji: '☕',  label: '카페' },
+    { id: 'restaurant', emoji: '🍽️', label: '맛집' },
+    { id: 'fishing',    emoji: '🎣',  label: '낚시·체험' },
+  ]
+
+  const PLACEHOLDERS = {
+    pension:    { name: '예) 제주 바다펜션',       loc: '예) 서귀포시 성산읍',  intro: '예) 성산일출봉 앞 오션뷰 독채 펜션' },
+    cafe:       { name: '예) 제주 돌담카페',       loc: '예) 제주시 한림읍',    intro: '예) 한라산 뷰 감성 카페' },
+    restaurant: { name: '예) 제주 흑돼지 맛집',   loc: '예) 제주시 연동',      intro: '예) 30년 전통 제주 흑돼지 전문점' },
+    fishing:    { name: '예) 제주 선상낚시 투어',  loc: '예) 서귀포시 대포항',  intro: '예) 당일 선상낚시 + 회 포장 서비스' },
+  }
+
+  const ph = PLACEHOLDERS[type]
+
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column' }}>
       <TopBar title="가게 등록" sub="기본 정보를 입력해 주세요" onBack={() => router.push('/connect')} />
       <div style={{ flex:1, padding:'0 18px 24px', overflowY:'auto' }}>
+
+        {/* 업종 선택 */}
         <div style={{ marginBottom:16 }}>
           <div style={{ fontSize:11, color:'#6B7875', fontWeight:500, marginBottom:8 }}>업종 선택</div>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-            {[{id:'pension',emoji:'🏕️',label:'펜션'},{id:'cafe',emoji:'☕',label:'카페'}].map(t => (
+            {TYPES.map(t => (
               <div key={t.id} onClick={() => setType(t.id)}
-                style={{ border: `${type===t.id?'2px solid #1D9E75':'1.5px solid #E6EAE8'}`, borderRadius:14, padding:'18px 10px', textAlign:'center', cursor:'pointer', background: type===t.id ? '#E1F5EE' : '#fff' }}>
+                style={{
+                  border: type===t.id ? '2px solid #1D9E75' : '1.5px solid #E6EAE8',
+                  borderRadius: 14,
+                  padding: '18px 10px',
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  background: type===t.id ? '#E1F5EE' : '#fff',
+                }}>
                 <div style={{ fontSize:32, marginBottom:6 }}>{t.emoji}</div>
                 <div style={{ fontSize:14, fontWeight:700, color: type===t.id ? '#0F6E56' : '#6B7875' }}>{t.label}</div>
               </div>
             ))}
           </div>
         </div>
+
+        {/* 입력 필드 */}
         {[
-          { label:'가게 이름', val:name, set:setName, placeholder:'예) 제주 바다펜션' },
-          { label:'위치', val:loc, set:setLoc, placeholder:'예) 서귀포시 성산읍' },
-          { label:'한줄 소개 (선택)', val:intro, set:setIntro, placeholder:'예) 성산일출봉 앞 오션뷰 독채 펜션' },
+          { label:'가게 이름',       val:name,  set:setName,  placeholder: ph.name },
+          { label:'위치',            val:loc,   set:setLoc,   placeholder: ph.loc },
+          { label:'한줄 소개 (선택)', val:intro, set:setIntro, placeholder: ph.intro },
         ].map(f => (
           <div key={f.label} style={{ marginBottom:14 }}>
             <div style={{ fontSize:11, color:'#6B7875', fontWeight:500, marginBottom:5 }}>{f.label}</div>
@@ -51,6 +78,7 @@ export default function RegisterPage() {
               style={{ width:'100%', padding:'13px 14px', borderRadius:10, border:'1.5px solid #E6EAE8', fontSize:14, fontFamily:'Noto Sans KR, sans-serif', color:'#1A2421', outline:'none' }} />
           </div>
         ))}
+
         <PrimaryBtn onClick={handleSave} disabled={saving}>{saving ? '저장 중...' : '등록 완료 →'}</PrimaryBtn>
       </div>
     </div>
