@@ -68,50 +68,27 @@ function extractSection(captionText, section) {
   const sectionMap = {
     titleLine1: '[주제목-라인1]',
     titleLine2: '[주제목-라인2]',
-    ko:         '[설명글-한국어]',
-    en:         '[설명글-영어]',
-    zh:         '[설명글-중국어]',
-    ja:         '[설명글-일본어]',
+    ko: '[설명글-한국어]',
+    en: '[설명글-영어]',
+    zh: '[설명글-중국어]',
+    ja: '[설명글-일본어]',
   }
   const header = sectionMap[section]
   if (!header) return ''
+  const allHeaders = Object.values(sectionMap)
   const lines = captionText.split('\n')
-  const headers = Object.values(sectionMap)
   let collecting = false
   const result = []
   for (const line of lines) {
     const trimmed = line.trim()
     if (trimmed === header) { collecting = true; continue }
-    if (headers.includes(trimmed) && collecting) break
-    if (collecting && trimmed && !trimmed.startsWith('#')) {
+    // 다른 섹션 헤더 나오면 즉시 종료
+    if (allHeaders.includes(trimmed) && collecting) break
+    if (collecting && trimmed) {
       result.push(trimmed.replace(/[\uD83C][\uDDE6-\uDDFF][\uD83C][\uDDE6-\uDDFF]/g, '').trim())
     }
   }
-  const found = result.join(' ').trim()
-  if (found) return found
-
-  // ── fallback: AI가 새 포맷 안 지켰을 때 기존 언어 마커로 파싱 ──
-  const fallbackMarkers = {
-    ko: ['[설명글-한국어]', '🇰🇷', '한국어 캡션', 'Korean'],
-    en: ['[설명글-영어]', '🇺🇸', '영어 캡션', 'English'],
-    zh: ['[설명글-중국어]', '🇨🇳', '중국어 캡션', 'Chinese', '中文'],
-    ja: ['[설명글-일본어]', '🇯🇵', '일본어 캡션', 'Japanese', '日本語'],
-  }
-  const fbTargets = fallbackMarkers[section] || []
-  if (!fbTargets.length) return ''
-  const isHeader = (l) => l.length < 60 && fbTargets.some(m => l.includes(m))
-  const allHeaders = Object.values(fallbackMarkers).flat()
-  const isAnyHeader = (l) => l.length < 60 && allHeaders.some(m => l.includes(m))
-  let fbCollecting = false
-  const fbResult = []
-  for (const line of lines) {
-    if (isHeader(line)) { fbCollecting = true; continue }
-    if (isAnyHeader(line) && fbCollecting) break
-    if (fbCollecting && line.trim() && !line.trim().startsWith('#')) {
-      fbResult.push(line.replace(/[\uD83C][\uDDE6-\uDDFF][\uD83C][\uDDE6-\uDDFF]/g, '').trim())
-    }
-  }
-  return fbResult.join(' ').trim()
+  return result.join(' ').trim()
 }
 
 
@@ -520,7 +497,7 @@ export default function VideoPage() {
     setCaptionLoading(true); setStep(2)
     try {
       const s = await (await fetch('/api/shop')).json()
-      const body = { shopName: s.shop_name, shopLocation: s.shop_location, shopType: s.shop_type }
+      const body = { shopName: s.shop_name, shopLocation: s.shop_location, shopType: s.shop_type, subLang }
       if (prompt) body.customPrompt = prompt
       const d = await (await fetch('/api/caption', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -566,9 +543,9 @@ export default function VideoPage() {
           resolvedTitle = tl1 && tl2 ? tl1 + '\n' + tl2 : tl1 || tl2
         }
         koText = extractSection(caption, 'ko') || ''
-        // subLang에 해당하는 섹션만 — 파싱 실패 시 빈 문자열 (절대 전체 caption 사용 안 함)
+        // 선택한 언어만 - 파싱 실패 시 빈 문자열 (다른 언어 절대 안 섞임)
         const parsedSub = extractSection(caption, subLang)
-        subText = (parsedSub && parsedSub.length < 300) ? parsedSub : ''
+        subText = parsedSub || ''
       }
 
       // ── BGM URL 결정 (AI 자동 or 직접 선택) ──
