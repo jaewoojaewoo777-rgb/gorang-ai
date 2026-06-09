@@ -84,35 +84,76 @@ async function buildVideo({ imgs, koText, subText, bgmType, isPortrait, onProgre
   const H = isPortrait ? 1920 : 1080
   const PER_IMG = 3000
   const FPS = 24
-  // 안전영역: 하단 320px(틱톡 기준) 회피 → 자막을 그 위에 배치
   const SAFE_BOTTOM = isPortrait ? 360 : 90
+  const CROSSFADE_MS = 400  // 사진 간 크로스페이드 구간
 
   const canvas = document.createElement('canvas')
   canvas.width = W; canvas.height = H
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
 
+  // ── BGM: Web Audio API로 실제 음악처럼 들리는 화음+멜로디 ──
   let audioCtx = null, stopBGM = null, audioTrack = null
   if (bgmType && bgmType !== 'none') {
     try {
       audioCtx = new (window.AudioContext || window.webkitAudioContext)()
       const dest = audioCtx.createMediaStreamDestination()
       const master = audioCtx.createGain()
-      master.gain.value = 0.18
+      master.gain.value = 0.15
       master.connect(dest); master.connect(audioCtx.destination)
-      const presets = {
-        calm:    [{ freq: 220, amp: 0.5 }, { freq: 330, amp: 0.3 }, { freq: 440, amp: 0.2 }],
-        bright:  [{ freq: 261, amp: 0.4 }, { freq: 392, amp: 0.4 }, { freq: 523, amp: 0.3 }],
-        jeju:    [{ freq: 196, amp: 0.5 }, { freq: 294, amp: 0.3 }, { freq: 370, amp: 0.2 }],
-        luxury:  [{ freq: 174, amp: 0.4 }, { freq: 261, amp: 0.3 }, { freq: 349, amp: 0.2 }],
+
+      // 리버브 효과 (공간감)
+      const convolver = audioCtx.createConvolver()
+      const revLen = audioCtx.sampleRate * 2
+      const revBuf = audioCtx.createBuffer(2, revLen, audioCtx.sampleRate)
+      for (let ch = 0; ch < 2; ch++) {
+        const d = revBuf.getChannelData(ch)
+        for (let j = 0; j < revLen; j++) d[j] = (Math.random() * 2 - 1) * Math.pow(1 - j / revLen, 2)
       }
-      const oscs = (presets[bgmType] || presets.calm).map(({ freq, amp }) => {
-        const osc = audioCtx.createOscillator()
-        const g = audioCtx.createGain()
-        osc.type = 'sine'; osc.frequency.value = freq; g.gain.value = amp
-        osc.connect(g); g.connect(master); osc.start()
-        return osc
+      convolver.buffer = revBuf
+      const reverbGain = audioCtx.createGain(); reverbGain.gain.value = 0.25
+      convolver.connect(reverbGain); reverbGain.connect(master)
+
+      // 악기 음색별 프리셋 (화음 + 베이스)
+      const presets = {
+        calm:   { chords: [[220,277,330],[196,247,294],[174,220,261],[185,233,277]], bass:[110,98,87,93], wave:'sine' },
+        bright: { chords: [[261,329,392],[294,370,440],[330,415,494],[349,440,523]], bass:[130,147,165,174], wave:'triangle' },
+        jeju:   { chords: [[196,247,294],[220,277,330],[185,233,277],[207,261,311]], bass:[98,110,93,103], wave:'sine' },
+        luxury: { chords: [[174,220,261],[155,196,233],[164,207,247],[174,220,261]], bass:[87,77,82,87], wave:'sine' },
+      }
+      const preset = presets[bgmType] || presets.calm
+      const totalDur = imgs.length * PER_IMG / 1000
+      const chordDur = totalDur / preset.chords.length
+
+      const allOscs = []
+      preset.chords.forEach((chord, ci) => {
+        const startT = audioCtx.currentTime + ci * chordDur
+        // 화음 각 음
+        chord.forEach(freq => {
+          const osc = audioCtx.createOscillator()
+          const g = audioCtx.createGain()
+          osc.type = preset.wave; osc.frequency.value = freq
+          g.gain.setValueAtTime(0, startT)
+          g.gain.linearRampToValueAtTime(0.18, startT + 0.3)
+          g.gain.linearRampToValueAtTime(0.14, startT + chordDur - 0.3)
+          g.gain.linearRampToValueAtTime(0, startT + chordDur)
+          osc.connect(g); g.connect(master); g.connect(convolver)
+          osc.start(startT); osc.stop(startT + chordDur)
+          allOscs.push(osc)
+        })
+        // 베이스
+        const bass = audioCtx.createOscillator()
+        const bg = audioCtx.createGain()
+        bass.type = 'sine'; bass.frequency.value = preset.bass[ci]
+        bg.gain.setValueAtTime(0, startT)
+        bg.gain.linearRampToValueAtTime(0.22, startT + 0.1)
+        bg.gain.linearRampToValueAtTime(0.18, startT + chordDur - 0.2)
+        bg.gain.linearRampToValueAtTime(0, startT + chordDur)
+        bass.connect(bg); bg.connect(master)
+        bass.start(startT); bass.stop(startT + chordDur)
+        allOscs.push(bass)
       })
-      stopBGM = () => oscs.forEach(o => { try { o.stop() } catch {} })
+
+      stopBGM = () => allOscs.forEach(o => { try { o.stop() } catch {} })
       audioTrack = dest.stream.getAudioTracks()[0]
     } catch (e) { console.warn('BGM 생성 실패:', e) }
   }
@@ -129,14 +170,12 @@ async function buildVideo({ imgs, koText, subText, bgmType, isPortrait, onProgre
   recorder.ondataavailable = e => { if (e.data && e.data.size > 0) chunks.push(e.data) }
   recorder.start(200)
 
-  // 텍스트를 사진 장수만큼 분할 (단어/어절 단위로 잘라서 글자 중간 잘림 방지)
+  // 텍스트를 사진 장수만큼 분할 (단어/어절 단위)
   function splitForImages(text, n) {
     if (!text) return Array(n).fill('')
     if (n === 1) return [text.trim()]
-    // 문장 구분자로 먼저 나누기 (마침표, 느낌표, 물음표, 줄바꿈)
     const sentences = text.split(/(?<=[.!?。！？\n])\s*/).map(s => s.trim()).filter(Boolean)
     if (sentences.length >= n) {
-      // 문장이 사진 수 이상이면 균등 배분
       const result = Array(n).fill('')
       const perChunk = Math.ceil(sentences.length / n)
       for (let i = 0; i < n; i++) {
@@ -144,7 +183,6 @@ async function buildVideo({ imgs, koText, subText, bgmType, isPortrait, onProgre
       }
       return result
     }
-    // 문장이 부족하면 공백/어절 단위로 분할
     const words = text.split(/\s+/).filter(Boolean)
     const result = Array(n).fill('')
     const perChunk = Math.ceil(words.length / n)
@@ -167,13 +205,62 @@ async function buildVideo({ imgs, koText, subText, bgmType, isPortrait, onProgre
       else line = test
     }
     if (line) lines.push(line)
-    return lines.slice(0, 2)  // 언어당 최대 2줄
+    return lines.slice(0, 2)
+  }
+
+  // ── 자막 배경박스 그리기 헬퍼 ──
+  function drawSubtitleBox(lines, font, lineH, startY, isKo) {
+    if (!lines.length) return
+    ctx.font = font
+    const pad = { x: isPortrait ? 32 : 20, y: isPortrait ? 14 : 10 }
+    const boxW = Math.min(
+      Math.max(...lines.map(l => ctx.measureText(l).width)) + pad.x * 2,
+      W - 60
+    )
+    const boxH = lines.length * lineH + pad.y * 2
+    const boxX = W / 2 - boxW / 2
+    const boxY = startY - lines.length * lineH - pad.y
+
+    // 배경 박스 (라운드 rect)
+    ctx.save()
+    ctx.beginPath()
+    const r = isPortrait ? 16 : 10
+    ctx.moveTo(boxX + r, boxY)
+    ctx.lineTo(boxX + boxW - r, boxY)
+    ctx.quadraticCurveTo(boxX + boxW, boxY, boxX + boxW, boxY + r)
+    ctx.lineTo(boxX + boxW, boxY + boxH - r)
+    ctx.quadraticCurveTo(boxX + boxW, boxY + boxH, boxX + boxW - r, boxY + boxH)
+    ctx.lineTo(boxX + r, boxY + boxH)
+    ctx.quadraticCurveTo(boxX, boxY + boxH, boxX, boxY + boxH - r)
+    ctx.lineTo(boxX, boxY + r)
+    ctx.quadraticCurveTo(boxX, boxY, boxX + r, boxY)
+    ctx.closePath()
+    ctx.fillStyle = isKo ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.38)'
+    ctx.fill()
+    ctx.restore()
+  }
+
+  // ── 사진 드로우 헬퍼 (줌+패닝) ──
+  function drawImgFrame(img, t, alpha) {
+    const scale = 1 + t * 0.07
+    const iw = img.naturalWidth || img.width
+    const ih = img.naturalHeight || img.height
+    const ratio = Math.max(W / iw, H / ih)
+    const dw = iw * ratio * scale; const dh = ih * ratio * scale
+    // 좌→우 패닝 (짝수 인덱스) / 우→좌 (홀수)
+    const panDir = (imgs.indexOf(img) % 2 === 0) ? 1 : -1
+    const dx = (W - dw) / 2 + panDir * (dw - W) * t * 0.04
+    const dy = (H - dh) / 2
+    ctx.globalAlpha = alpha
+    ctx.drawImage(img, dx, dy, dw, dh)
+    ctx.globalAlpha = 1
   }
 
   const TOTAL_MS = imgs.length * PER_IMG
 
   for (let i = 0; i < imgs.length; i++) {
     const img = imgs[i]
+    const nextImg = imgs[i + 1] || null
     const koLine = koChunks[i] || ''
     const subLine = subChunks[i] || ''
     const frameStart = performance.now()
@@ -182,57 +269,75 @@ async function buildVideo({ imgs, koText, subText, bgmType, isPortrait, onProgre
       const drawFrame = () => {
         const elapsed = performance.now() - frameStart
         const t = Math.min(elapsed / PER_IMG, 1)
+
+        // 배경 초기화
         ctx.fillStyle = '#111'; ctx.fillRect(0, 0, W, H)
-        const scale = 1 + t * 0.06
-        const iw = img.naturalWidth || img.width
-        const ih = img.naturalHeight || img.height
-        const ratio = Math.max(W / iw, H / ih)
-        const dw = iw * ratio * scale; const dh = ih * ratio * scale
-        const dx = (W - dw) / 2 - (dw - W / scale) * t * 0.03
-        const dy = (H - dh) / 2
-        ctx.drawImage(img, dx, dy, dw, dh)
-        const grad = ctx.createLinearGradient(0, H * 0.55, 0, H)
-        grad.addColorStop(0, 'rgba(0,0,0,0)'); grad.addColorStop(1, 'rgba(0,0,0,0.8)')
+
+        // ── 크로스페이드 전환 ──
+        const crossStart = PER_IMG - CROSSFADE_MS
+        if (nextImg && elapsed > crossStart) {
+          const cf = Math.min(1, (elapsed - crossStart) / CROSSFADE_MS)
+          drawImgFrame(img, t, 1 - cf)
+          drawImgFrame(nextImg, 0, cf)
+        } else {
+          drawImgFrame(img, t, 1)
+        }
+
+        // 하단 그라디언트 오버레이 (자막 가독성)
+        const grad = ctx.createLinearGradient(0, H * 0.5, 0, H)
+        grad.addColorStop(0, 'rgba(0,0,0,0)')
+        grad.addColorStop(0.6, 'rgba(0,0,0,0.5)')
+        grad.addColorStop(1, 'rgba(0,0,0,0.85)')
         ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H)
 
-        const fadeIn  = Math.min(1, elapsed / 600)
-        const fadeOut = elapsed > PER_IMG - 600 ? Math.max(0, (PER_IMG - elapsed) / 600) : 1
+        // 자막 페이드인/아웃
+        const fadeIn  = Math.min(1, elapsed / 500)
+        const fadeOut = elapsed > PER_IMG - 500 ? Math.max(0, (PER_IMG - elapsed) / 500) : 1
         const alpha   = fadeIn * fadeOut
 
-        ctx.save(); ctx.globalAlpha = alpha
-        ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'
-        ctx.shadowColor = 'rgba(0,0,0,0.95)'; ctx.shadowBlur = 16
+        ctx.save()
+        ctx.globalAlpha = alpha
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'bottom'
+        ctx.shadowColor = 'rgba(0,0,0,0.9)'
+        ctx.shadowBlur = 12
 
-        const koFont  = `bold ${isPortrait ? 52 : 38}px "Apple SD Gothic Neo", "Noto Sans KR", sans-serif`
-        const subFont = `600 ${isPortrait ? 40 : 30}px "Apple SD Gothic Neo", "Noto Sans KR", sans-serif`
-        const maxW = W - 90
+        const koFontSize  = isPortrait ? 54 : 40
+        const subFontSize = isPortrait ? 42 : 32
+        const koFont  = `900 ${koFontSize}px "Apple SD Gothic Neo", "Noto Sans KR", sans-serif`
+        const subFont = `700 ${subFontSize}px "Apple SD Gothic Neo", "Noto Sans KR", sans-serif`
+        const maxW = W - 120
 
-        const koLines  = koLine  ? wrapText(koLine, koFont, maxW) : []
+        const koLines  = koLine  ? wrapText(koLine,  koFont,  maxW) : []
         const subLines = subLine ? wrapText(subLine, subFont, maxW) : []
 
-        const koLh  = (isPortrait ? 52 : 38) + 12
-        const subLh = (isPortrait ? 40 : 30) + 10
-        const gap = 16
+        const koLh  = koFontSize  + 14
+        const subLh = subFontSize + 12
+        const gap = 20
 
-        const totalH = koLines.length * koLh + (subLines.length ? gap + subLines.length * subLh : 0)
         let y = H - SAFE_BOTTOM
 
-        // 아래에서 위로: 외국어(보조) 먼저 그리고 그 위에 한국어
+        // 외국어 자막 (아래)
         if (subLines.length) {
-          ctx.font = subFont; ctx.fillStyle = '#E8F4FF'
+          drawSubtitleBox(subLines, subFont, subLh, y, false)
+          ctx.font = subFont; ctx.fillStyle = '#D8EEFF'
           for (let li = subLines.length - 1; li >= 0; li--) {
             ctx.fillText(subLines[li], W / 2, y)
             y -= subLh
           }
           y -= gap
         }
+
+        // 한국어 자막 (위, 강조)
         if (koLines.length) {
-          ctx.font = koFont; ctx.fillStyle = '#fff'
+          drawSubtitleBox(koLines, koFont, koLh, y, true)
+          ctx.font = koFont; ctx.fillStyle = '#FFFFFF'
           for (let li = koLines.length - 1; li >= 0; li--) {
             ctx.fillText(koLines[li], W / 2, y)
             y -= koLh
           }
         }
+
         ctx.restore()
 
         const progress = ((i * PER_IMG + elapsed) / TOTAL_MS) * 88
