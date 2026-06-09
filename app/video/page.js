@@ -672,7 +672,16 @@ export default function VideoPage() {
                   <LoadingDots />
                 </div>
               : <>
-                  <AiBox label="✦ AI 생성 캡션">{caption || '캡션이 없어요.'}</AiBox>
+                  <div style={{ background:'#E1F5EE', borderRadius:14, padding:16, border:'1.5px solid #5DCAA5', marginBottom:12 }}>
+                    <div style={{ fontSize:10, color:'#0F6E56', fontWeight:700, marginBottom:10 }}>✦ AI 생성 캡션</div>
+                    <div style={{ fontSize:13, color:'#1A2421', marginBottom:8, lineHeight:1.6 }}>
+                      <span style={{ fontWeight:700 }}>🇰🇷</span> {extractByLang(caption, 'ko') || '한국어 캡션 생성 중...'}
+                    </div>
+                    <div style={{ fontSize:13, color:'#3A4744', lineHeight:1.6 }}>
+                      <span style={{ fontWeight:700 }}>{SUB_LANG.find(l=>l.code===subLang)?.flag}</span>{' '}
+                      {extractByLang(caption, subLang) || `${SUB_LANG.find(l=>l.code===subLang)?.name} 캡션 생성 중...`}
+                    </div>
+                  </div>
                   <div style={{ display:'flex', gap:8, marginBottom:14 }}>
                     <GhostBtn onClick={() => runAICaption(customPrompt || null)} style={{ flex:1, padding:'10px', fontSize:12 }}>↻ 다시 생성</GhostBtn>
                     <button onClick={() => { const t = prompt('캡션 수정:', caption); if(t!==null) setCaption(t) }}
