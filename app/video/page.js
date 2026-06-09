@@ -283,24 +283,26 @@ async function buildVideo({ imgs, koText, subText, bgmType, isPortrait, onProgre
           drawImgFrame(img, t, 1)
         }
 
-        // 하단 그라디언트 오버레이 (자막 가독성)
-        const grad = ctx.createLinearGradient(0, H * 0.5, 0, H)
+        // 하단 그라디언트 오버레이 — 하단 30%만 어둡게 (사진 더 잘 보임)
+        const grad = ctx.createLinearGradient(0, H * 0.7, 0, H)
         grad.addColorStop(0, 'rgba(0,0,0,0)')
-        grad.addColorStop(0.6, 'rgba(0,0,0,0.5)')
-        grad.addColorStop(1, 'rgba(0,0,0,0.85)')
+        grad.addColorStop(1, 'rgba(0,0,0,0.75)')
         ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H)
 
-        // 자막 페이드인/아웃
-        const fadeIn  = Math.min(1, elapsed / 500)
-        const fadeOut = elapsed > PER_IMG - 500 ? Math.max(0, (PER_IMG - elapsed) / 500) : 1
+        // 자막 페이드인 200ms (바이럴 영상처럼 시작하자마자 바로 보임)
+        const fadeIn  = Math.min(1, elapsed / 200)
+        const fadeOut = elapsed > PER_IMG - 400 ? Math.max(0, (PER_IMG - elapsed) / 400) : 1
         const alpha   = fadeIn * fadeOut
 
         ctx.save()
         ctx.globalAlpha = alpha
         ctx.textAlign = 'center'
         ctx.textBaseline = 'bottom'
-        ctx.shadowColor = 'rgba(0,0,0,0.9)'
-        ctx.shadowBlur = 12
+        // 박스 없이 섀도우만으로 가독성 확보 (바이럴 영상 스타일)
+        ctx.shadowColor = 'rgba(0,0,0,1)'
+        ctx.shadowBlur = isPortrait ? 20 : 14
+        ctx.shadowOffsetX = 0
+        ctx.shadowOffsetY = isPortrait ? 3 : 2
 
         const koFontSize  = isPortrait ? 54 : 40
         const subFontSize = isPortrait ? 42 : 32
@@ -317,9 +319,8 @@ async function buildVideo({ imgs, koText, subText, bgmType, isPortrait, onProgre
 
         let y = H - SAFE_BOTTOM
 
-        // 외국어 자막 (아래)
+        // 외국어 자막 (아래) — 박스 없이 텍스트만
         if (subLines.length) {
-          drawSubtitleBox(subLines, subFont, subLh, y, false)
           ctx.font = subFont; ctx.fillStyle = '#D8EEFF'
           for (let li = subLines.length - 1; li >= 0; li--) {
             ctx.fillText(subLines[li], W / 2, y)
@@ -328,9 +329,8 @@ async function buildVideo({ imgs, koText, subText, bgmType, isPortrait, onProgre
           y -= gap
         }
 
-        // 한국어 자막 (위, 강조)
+        // 한국어 자막 (위, 강조) — 박스 없이 텍스트만
         if (koLines.length) {
-          drawSubtitleBox(koLines, koFont, koLh, y, true)
           ctx.font = koFont; ctx.fillStyle = '#FFFFFF'
           for (let li = koLines.length - 1; li >= 0; li--) {
             ctx.fillText(koLines[li], W / 2, y)
