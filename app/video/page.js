@@ -519,36 +519,26 @@ export default function VideoPage() {
     if (!files.length) return
     setGenerating(true); setGenProgress(0); setGenError('')
     try {
-      const imgs = await Promise.all(previews.map(src => new Promise((res, rej) => {
-        const img = new Image()
-        img.crossOrigin = 'anonymous'
-        img.onload = () => res(img)
-        img.onerror = () => { img.crossOrigin = null; img.src = src; img.onload = () => res(img); img.onerror = rej }
-        img.src = src
-      })))
-
-      // 자막 텍스트 결정
-      let koText, subText, resolvedTitle
+      // ── 텍스트 결정 ──
+      let koText, subText, titleLine1, titleLine2
       if (manualMode) {
         koText = manualKo
         subText = manualSub
-        resolvedTitle = titleText  // 직접작성: "JEJU CAFE\n천국같은 오션뷰" 형식으로 입력
+        const parts = (titleText || '').split('\n').filter(Boolean)
+        titleLine1 = parts[0] || ''
+        titleLine2 = parts[1] || ''
       } else {
-        const tl1 = extractSection(caption, 'titleLine1') || ''
-        const tl2 = extractSection(caption, 'titleLine2') || ''
-        // titleText(수동 수정)가 있으면 우선, 없으면 AI 생성값 사용
-        if (titleText) {
-          resolvedTitle = titleText
-        } else {
-          resolvedTitle = tl1 && tl2 ? tl1 + '\n' + tl2 : tl1 || tl2
-        }
-        koText = extractSection(caption, 'ko') || ''
-        // 선택한 언어만 - 파싱 실패 시 빈 문자열 (다른 언어 절대 안 섞임)
-        const parsedSub = extractSection(caption, subLang)
-        subText = parsedSub || ''
+        titleLine1 = titleText
+          ? titleText.split('\n')[0] || ''
+          : extractSection(caption, 'titleLine1') || ''
+        titleLine2 = titleText
+          ? titleText.split('\n')[1] || ''
+          : extractSection(caption, 'titleLine2') || ''
+        koText  = extractSection(caption, 'ko') || ''
+        subText = extractSection(caption, subLang) || ''
       }
 
-      // ── BGM URL 결정 (AI 자동 or 직접 선택) ──
+      // ── BGM URL 결정 ──
       let bgmUrl = null
       if (selectedBGM === 'none') {
         bgmUrl = null
@@ -556,53 +546,94 @@ export default function VideoPage() {
         setGenMsg('🎵 사진 분위기 분석 중...')
         try {
           const res = await fetch('/api/analyze-bgm', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ imageUrls: previews.slice(0, 1) })
           })
           const data = await res.json()
           bgmUrl = data.bgmUrl
-          setGenMsg(`🎵 BGM 선택됨: ${data.tag || 'cafe'} 무드`)
+          setGenMsg(`🎵 BGM: ${data.tag || 'cafe'} 무드`)
         } catch {
-          // fallback: cafe 랜덤
           const fallbacks = ['bgm-cafe.mp3', 'bgm-cafe1.mp3', 'bgm-cafe2.mp3', 'bgm-cafe3.mp3']
           const f = fallbacks[Math.floor(Math.random() * fallbacks.length)]
           bgmUrl = `https://hjvgekdeqqgxawefrzlk.supabase.co/storage/v1/object/public/BGM/${f}`
         }
       } else {
-        // 직접 선택 시 해당 태그에서 랜덤
-        const files = BGM_FILES[selectedBGM] || BGM_FILES.cafe
-        const picked = files[Math.floor(Math.random() * files.length)]
+        const bgmFiles = BGM_FILES[selectedBGM] || BGM_FILES.cafe
+        const picked = bgmFiles[Math.floor(Math.random() * bgmFiles.length)]
         bgmUrl = `https://hjvgekdeqqgxawefrzlk.supabase.co/storage/v1/object/public/BGM/${picked}`
       }
+
+      // ── 이미지를 base64로 변환 ──
+      setGenMsg('🖼️ 이미지 준비 중...')
+      setGenProgress(5)
+      const imageDataUrls = await Promise.all(
+        previews.map(src => new Promise((resolve, reject) => {
+          const img = new Image()
+          img.crossOrigin = 'anonymous'
+          img.onload = () => {
+            const canvas = document.createElement('canvas')
+            // 최대 1920px로 제한 (업로드 크기 줄임)
+            const maxSize = 1920
+            let w = img.naturalWidth, h = img.naturalHeight
+            if (w > maxSize || h > maxSize) {
+              const ratio = Math.min(maxSize / w, maxSize / h)
+              w = Math.round(w * ratio); h = Math.round(h * ratio)
+            }
+            canvas.width = w; canvas.height = h
+            canvas.getContext('2d').drawImage(img, 0, 0, w, h)
+            resolve(canvas.toDataURL('image/jpeg', 0.85))
+          }
+          img.onerror = reject
+          img.src = src
+        }))
+      )
+      setGenProgress(15)
 
       const ratios = selectedPlatforms.map(pid => PLATFORMS.find(p => p.id === pid)?.ratio)
       const needPortrait  = ratios.includes('portrait')
       const needLandscape = ratios.includes('landscape')
+      const fontStyle = Math.floor(Math.random() * 5)
       const result = {}
 
+      // ── Cloudinary 서버사이드 영상 생성 ──
       if (needPortrait) {
-        setGenMsg('📱 세로 영상 제작 중...')
-        const blob = await buildVideo({
-          imgs, koText, subText, bgmType: bgmUrl, topTag: resolvedTitle, isPortrait: true,
-          onProgress: p => setGenProgress(needLandscape ? p * 0.5 : p)
+        setGenMsg('📱 세로 영상 서버에서 제작 중... (30초~1분 소요)')
+        setGenProgress(20)
+        const res = await fetch('/api/video/generate', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imageDataUrls, koText, subText, titleLine1, titleLine2,
+            bgmUrl, isPortrait: true, fontStyle,
+          })
         })
-        result.portrait = { blob, url: URL.createObjectURL(blob) }
-      }
-      if (needLandscape) {
-        setGenMsg('🖥️ 가로 영상 제작 중...')
-        const blob = await buildVideo({
-          imgs, koText, subText, bgmType: bgmUrl, topTag: resolvedTitle, isPortrait: false,
-          onProgress: p => setGenProgress(needPortrait ? 50 + p * 0.5 : p)
-        })
-        result.landscape = { blob, url: URL.createObjectURL(blob) }
+        const data = await res.json()
+        if (!data.ok) throw new Error(data.error || '세로 영상 생성 실패')
+        result.portrait = { url: data.videoUrl, blob: null }
+        setGenProgress(needLandscape ? 55 : 90)
       }
 
+      if (needLandscape) {
+        setGenMsg('🖥️ 가로 영상 서버에서 제작 중...')
+        setGenProgress(needPortrait ? 60 : 20)
+        const res = await fetch('/api/video/generate', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imageDataUrls, koText, subText, titleLine1, titleLine2,
+            bgmUrl, isPortrait: false, fontStyle,
+          })
+        })
+        const data = await res.json()
+        if (!data.ok) throw new Error(data.error || '가로 영상 생성 실패')
+        result.landscape = { url: data.videoUrl, blob: null }
+        setGenProgress(90)
+      }
+
+      setGenProgress(100)
       setVideos(result)
       setStep(3)
     } catch (e) {
       console.error(e)
-      setGenError('영상 생성 중 오류가 발생했어요: ' + e.message)
+      setGenError('영상 생성 중 오류: ' + e.message)
     }
     setGenerating(false)
   }
@@ -612,10 +643,20 @@ export default function VideoPage() {
     const results = []
     for (const pid of selectedPlatforms) {
       const platform = PLATFORMS.find(p => p.id === pid)
-      const blob = videos[platform.ratio]?.blob || videoFile
+      const videoData = videos[platform.ratio]
 
       if (pid === 'instagram') {
         results.push({ platform: pid, status: '⏳ 심사 후 업로드 예정' }); continue
+      }
+
+      let blob = videoData?.blob || videoFile
+      if (!blob && videoData?.url) {
+        try {
+          const resp = await fetch(videoData.url)
+          blob = await resp.blob()
+        } catch {
+          results.push({ platform: pid, status: '❌ 영상 다운로드 실패' }); continue
+        }
       }
       if (!blob) { results.push({ platform: pid, status: '❌ 파일 없음' }); continue }
 
