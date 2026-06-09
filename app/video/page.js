@@ -92,70 +92,37 @@ function extractByLang(captionText, langCode) {
   return result.join(' ').trim()
 }
 
-async function buildVideo({ imgs, koText, subText, bgmType, topTag, isPortrait, onProgress, micStream }) {
+async function buildVideo({ imgs, koText, subText, bgmType, topTag, isPortrait, onProgress }) {
   const W = isPortrait ? 1080 : 1920
   const H = isPortrait ? 1920 : 1080
   const PER_IMG = 3000
   const FPS = 24
   const SAFE_BOTTOM = isPortrait ? 360 : 90
   const CROSSFADE_MS = 400
-  const TOP_TAG_H = isPortrait ? 100 : 70   // 상단 태그 영역 높이
 
   const canvas = document.createElement('canvas')
   canvas.width = W; canvas.height = H
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
 
-  // ── 오디오: BGM + 마이크 동시 믹싱 ──
+  // ── BGM ──
   let audioCtx = null, stopBGM = null, audioTrack = null
-  const audioTracks = []
-
-  // BGM
   if (bgmType && bgmType !== 'none') {
     try {
       const resp = await fetch(bgmType)
+      if (!resp.ok) throw new Error('BGM fetch 실패: ' + resp.status)
       const arrayBuf = await resp.arrayBuffer()
       audioCtx = new (window.AudioContext || window.webkitAudioContext)()
       const audioBuf = await audioCtx.decodeAudioData(arrayBuf)
       const dest = audioCtx.createMediaStreamDestination()
       const master = audioCtx.createGain()
-      // 마이크 있으면 BGM 볼륨 낮춤 (목소리 잘 들리게)
-      master.gain.value = micStream ? 0.45 : 0.85
+      master.gain.value = 0.85
       master.connect(dest); master.connect(audioCtx.destination)
       const source = audioCtx.createBufferSource()
       source.buffer = audioBuf; source.loop = true
       source.connect(master); source.start(0)
       stopBGM = () => { try { source.stop() } catch {} }
-      audioTracks.push(...dest.stream.getAudioTracks())
+      audioTrack = dest.stream.getAudioTracks()[0]
     } catch (e) { console.warn('BGM 로드 실패:', e) }
-  }
-
-  // 마이크 (BGM과 별도 트랙으로 믹싱)
-  if (micStream) {
-    try {
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)()
-      const micDest = audioCtx.createMediaStreamDestination()
-      const micSource = audioCtx.createMediaStreamSource(micStream)
-      const micGain = audioCtx.createGain()
-      micGain.gain.value = 1.2  // 목소리 약간 증폭
-      micSource.connect(micGain); micGain.connect(micDest)
-      micGain.connect(audioCtx.destination)
-      audioTracks.push(...micDest.stream.getAudioTracks())
-    } catch (e) { console.warn('마이크 연결 실패:', e) }
-  }
-
-  // 오디오 트랙 합치기
-  if (audioTracks.length > 1 && audioCtx) {
-    try {
-      const mixDest = audioCtx.createMediaStreamDestination()
-      audioTracks.forEach(track => {
-        const ms = new MediaStream([track])
-        const src = audioCtx.createMediaStreamSource(ms)
-        src.connect(mixDest)
-      })
-      audioTrack = mixDest.stream.getAudioTracks()[0]
-    } catch { audioTrack = audioTracks[0] }
-  } else if (audioTracks.length === 1) {
-    audioTrack = audioTracks[0]
   }
 
   const videoStream = canvas.captureStream(FPS)
@@ -203,78 +170,32 @@ async function buildVideo({ imgs, koText, subText, bgmType, topTag, isPortrait, 
     return lines.slice(0, 2)
   }
 
-  // ── 상단 고정 태그 그리기 (틱톡 스타일) ──
-  function drawTopTag(alpha) {
+  // ── 중앙 텍스트 태그 그리기 (인스타 감성) ──
+  function drawCenterTag(alpha) {
     if (!topTag) return
     ctx.save()
     ctx.globalAlpha = alpha
-    const tagFont = `700 ${isPortrait ? 36 : 26}px "Apple SD Gothic Neo", "Noto Sans KR", sans-serif`
+    const fontSize = isPortrait ? 52 : 38
+    const tagFont = `900 ${fontSize}px "Apple SD Gothic Neo", "Noto Sans KR", sans-serif`
     ctx.font = tagFont
-    const tags = topTag.split(' ').filter(Boolean).slice(0, 4)  // 최대 4개
-    let x = isPortrait ? 40 : 30
-    const y = isPortrait ? 100 : 70
-    const pad = isPortrait ? 16 : 12
-    const tagH = isPortrait ? 52 : 38
-    const r = tagH / 2
-
-    tags.forEach(tag => {
-      const tw = ctx.measureText(tag).width
-      const boxW = tw + pad * 2
-
-      // 태그 배경 (반투명 흰색 알약 모양)
-      ctx.beginPath()
-      ctx.moveTo(x + r, y - tagH + 4)
-      ctx.lineTo(x + boxW - r, y - tagH + 4)
-      ctx.arcTo(x + boxW, y - tagH + 4, x + boxW, y + 4, r)
-      ctx.arcTo(x + boxW, y + 4, x + r, y + 4, r)
-      ctx.lineTo(x + r, y + 4)
-      ctx.arcTo(x, y + 4, x, y - tagH + 4, r)
-      ctx.arcTo(x, y - tagH + 4, x + r, y - tagH + 4, r)
-      ctx.closePath()
-      ctx.fillStyle = 'rgba(255,255,255,0.22)'
-      ctx.fill()
-
-      // 태그 테두리
-      ctx.strokeStyle = 'rgba(255,255,255,0.55)'
-      ctx.lineWidth = isPortrait ? 2 : 1.5
-      ctx.stroke()
-
-      // 태그 텍스트
-      ctx.shadowColor = 'rgba(0,0,0,0.6)'
-      ctx.shadowBlur = 6
-      ctx.fillStyle = '#fff'
-      ctx.textAlign = 'left'
-      ctx.textBaseline = 'middle'
-      ctx.fillText(tag, x + pad, y - tagH / 2 + 4)
-
-      x += boxW + (isPortrait ? 16 : 10)
-    })
-    ctx.restore()
-  }
-
-  // ── 타이핑 애니메이션 자막 ──
-  function drawTypingSubtitle(text, font, color, yPos, elapsed, totalMs) {
-    if (!text) return
-    // 전체 텍스트를 elapsed 비율로 잘라서 타이핑 효과
-    const revealRatio = Math.min(1, elapsed / (totalMs * 0.6))
-    const visibleLen = Math.floor(text.length * revealRatio)
-    const visible = text.slice(0, visibleLen)
-    if (!visible) return
-
-    const maxW = W - (isPortrait ? 120 : 160)
-    const lines = wrapText(visible, font, maxW)
-
-    ctx.save()
-    ctx.font = font
     ctx.textAlign = 'center'
-    ctx.textBaseline = 'bottom'
-    ctx.shadowColor = 'rgba(0,0,0,1)'
-    ctx.shadowBlur = isPortrait ? 18 : 12
-    ctx.shadowOffsetY = isPortrait ? 3 : 2
-    ctx.fillStyle = color
+    ctx.textBaseline = 'middle'
 
-    lines.forEach((line, li) => {
-      ctx.fillText(line, W / 2, yPos - (lines.length - 1 - li) * (parseInt(font) + 12))
+    // 텍스트 섀도우로 가독성 확보
+    ctx.shadowColor = 'rgba(0,0,0,0.9)'
+    ctx.shadowBlur = isPortrait ? 24 : 16
+    ctx.shadowOffsetY = isPortrait ? 4 : 3
+    ctx.fillStyle = '#FFFFFF'
+
+    // 줄바꿈 처리 (긴 태그는 자동 줄바꿈)
+    const maxW = W - (isPortrait ? 120 : 160)
+    const lines = wrapText(topTag, tagFont, maxW)
+    const lineH = fontSize + (isPortrait ? 16 : 12)
+    const totalH = lines.length * lineH
+    const startY = H / 2 - totalH / 2
+
+    lines.forEach((line, i) => {
+      ctx.fillText(line, W / 2, startY + i * lineH)
     })
     ctx.restore()
   }
@@ -332,30 +253,50 @@ async function buildVideo({ imgs, koText, subText, bgmType, topTag, isPortrait, 
         botGrad.addColorStop(1, 'rgba(0,0,0,0.78)')
         ctx.fillStyle = botGrad; ctx.fillRect(0, 0, W, H)
 
-        // 전체 페이드인
-        const fadeIn = Math.min(1, elapsed / 200)
+        // 페이드인/아웃
+        const fadeIn  = Math.min(1, elapsed / 200)
         const fadeOut = elapsed > PER_IMG - 400 ? Math.max(0, (PER_IMG - elapsed) / 400) : 1
+        const alpha   = fadeIn * fadeOut
 
-        // ── 상단 고정 태그 ──
-        drawTopTag(fadeIn)
+        // ── 중앙 태그 (첫 번째 사진에만 or 전체) ──
+        drawCenterTag(fadeIn * (elapsed < PER_IMG * 0.8 ? 1 : Math.max(0, (PER_IMG - elapsed) / (PER_IMG * 0.2))))
 
-        // ── 하단 자막 (타이핑 애니메이션) ──
+        // ── 하단 자막 ──
         const koFontSize  = isPortrait ? 52 : 38
         const subFontSize = isPortrait ? 40 : 30
         const koFont  = `900 ${koFontSize}px "Apple SD Gothic Neo", "Noto Sans KR", sans-serif`
         const subFont = `700 ${subFontSize}px "Apple SD Gothic Neo", "Noto Sans KR", sans-serif`
+        const maxW = W - 120
+
+        const koLines  = koLine  ? wrapText(koLine,  koFont,  maxW) : []
+        const subLines = subLine ? wrapText(subLine, subFont, maxW) : []
+        const koLh = koFontSize  + 14
+        const subLh = subFontSize + 12
+
+        ctx.save()
+        ctx.globalAlpha = alpha
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'bottom'
+        ctx.shadowColor = 'rgba(0,0,0,1)'
+        ctx.shadowBlur = isPortrait ? 20 : 14
+        ctx.shadowOffsetY = isPortrait ? 3 : 2
 
         let y = H - SAFE_BOTTOM
 
-        if (subLine) {
-          drawTypingSubtitle(subLine, subFont, '#C8E6FF', y, elapsed, PER_IMG)
-          const subLines = wrapText(subLine.slice(0, Math.floor(subLine.length * Math.min(1, elapsed / (PER_IMG * 0.6)))), subFont, W - (isPortrait ? 120 : 160))
-          y -= (subLines.length || 1) * (subFontSize + 12) + 20
+        if (subLines.length) {
+          ctx.font = subFont; ctx.fillStyle = '#C8E6FF'
+          for (let li = subLines.length - 1; li >= 0; li--) {
+            ctx.fillText(subLines[li], W / 2, y); y -= subLh
+          }
+          y -= 20
         }
-
-        if (koLine) {
-          drawTypingSubtitle(koLine, koFont, '#FFFFFF', y, elapsed, PER_IMG)
+        if (koLines.length) {
+          ctx.font = koFont; ctx.fillStyle = '#FFFFFF'
+          for (let li = koLines.length - 1; li >= 0; li--) {
+            ctx.fillText(koLines[li], W / 2, y); y -= koLh
+          }
         }
+        ctx.restore()
 
         const progress = ((i * PER_IMG + elapsed) / TOTAL_MS) * 88
         onProgress(Math.min(progress, 88))
@@ -407,8 +348,6 @@ export default function VideoPage() {
 
   const [subLang, setSubLang] = useState('en')      // 보조 언어 (한국어는 고정)
   const [selectedBGM, setSelectedBGM] = useState('auto')
-  const [useMic, setUseMic] = useState(false)       // 마이크 녹음 여부
-  const [micStream, setMicStream] = useState(null)  // 마이크 스트림
   const [topTag, setTopTag] = useState('')           // 상단 고정 태그
   const [selectedPlatforms, setSelectedPlatforms] = useState(['youtube_shorts'])
   const [generating, setGenerating] = useState(false)
@@ -500,13 +439,13 @@ export default function VideoPage() {
           // fallback: cafe 랜덤
           const fallbacks = ['bgm-cafe.mp3', 'bgm-cafe1.mp3', 'bgm-cafe2.mp3', 'bgm-cafe3.mp3']
           const f = fallbacks[Math.floor(Math.random() * fallbacks.length)]
-          bgmUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/BGM/${f}`
+          bgmUrl = `https://hjvgekdeqqgxawefrzlk.supabase.co/storage/v1/object/public/BGM/${f}`
         }
       } else {
         // 직접 선택 시 해당 태그에서 랜덤
         const files = BGM_FILES[selectedBGM] || BGM_FILES.cafe
         const picked = files[Math.floor(Math.random() * files.length)]
-        bgmUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/BGM/${picked}`
+        bgmUrl = `https://hjvgekdeqqgxawefrzlk.supabase.co/storage/v1/object/public/BGM/${picked}`
       }
 
       const ratios = selectedPlatforms.map(pid => PLATFORMS.find(p => p.id === pid)?.ratio)
@@ -517,7 +456,7 @@ export default function VideoPage() {
       if (needPortrait) {
         setGenMsg('📱 세로 영상 제작 중...')
         const blob = await buildVideo({
-          imgs, koText, subText, bgmType: bgmUrl, topTag, isPortrait: true, micStream,
+          imgs, koText, subText, bgmType: bgmUrl, topTag, isPortrait: true,
           onProgress: p => setGenProgress(needLandscape ? p * 0.5 : p)
         })
         result.portrait = { blob, url: URL.createObjectURL(blob) }
@@ -525,7 +464,7 @@ export default function VideoPage() {
       if (needLandscape) {
         setGenMsg('🖥️ 가로 영상 제작 중...')
         const blob = await buildVideo({
-          imgs, koText, subText, bgmType: bgmUrl, topTag, isPortrait: false, micStream,
+          imgs, koText, subText, bgmType: bgmUrl, topTag, isPortrait: false,
           onProgress: p => setGenProgress(needPortrait ? 50 + p * 0.5 : p)
         })
         result.landscape = { blob, url: URL.createObjectURL(blob) }
@@ -717,31 +656,6 @@ export default function VideoPage() {
               </div>
             </div>
 
-            {/* 마이크 녹음 */}
-            <div style={{ marginBottom:14 }}>
-              <div style={{ fontSize:11, color:'#6B7875', fontWeight:500, marginBottom:8 }}>🎙️ 목소리 녹음 <span style={{ color:'#B0BAB6', fontWeight:400 }}>(BGM과 동시 믹싱)</span></div>
-              <div onClick={async () => {
-                if (useMic) {
-                  if (micStream) { micStream.getTracks().forEach(t => t.stop()); setMicStream(null) }
-                  setUseMic(false)
-                } else {
-                  try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-                    setMicStream(stream); setUseMic(true)
-                  } catch { alert('마이크 접근 권한이 필요해요') }
-                }
-              }} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', borderRadius:12, border:`1.5px solid ${useMic?'#1D9E75':'#E6EAE8'}`, background: useMic?'#E1F5EE':'#fff', cursor:'pointer' }}>
-                <div style={{ width:36, height:20, borderRadius:10, background: useMic?'#1D9E75':'#D0D4D2', position:'relative', transition:'background 0.2s', flexShrink:0 }}>
-                  <div style={{ width:16, height:16, borderRadius:8, background:'#fff', position:'absolute', top:2, left: useMic?18:2, transition:'left 0.2s' }} />
-                </div>
-                <span style={{ fontSize:13, color: useMic?'#0F6E56':'#6B7875', fontWeight: useMic?600:400 }}>
-                  {useMic ? '🎙️ 마이크 ON — 영상 만들기 시작 전에 말하세요' : '마이크 OFF (탭하면 켜짐)'}
-                </span>
-              </div>
-              {useMic && <div style={{ fontSize:11, color:'#EF9F27', marginTop:6, padding:'6px 10px', background:'#FFF9ED', borderRadius:8 }}>
-                ⚠️ 영상 제작 중 말하는 내용이 그대로 녹음돼요. BGM 볼륨은 자동으로 낮아져요.
-              </div>}
-            </div>
 
             {/* 자막 언어 — 한국어 고정 + 1개 선택 */}
             <div style={{ marginBottom:16 }}>
