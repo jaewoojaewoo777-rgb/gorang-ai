@@ -581,7 +581,7 @@ export default function VideoPage() {
             }
             canvas.width = w; canvas.height = h
             canvas.getContext('2d').drawImage(img, 0, 0, w, h)
-            resolve(canvas.toDataURL('image/jpeg', 0.85))
+            resolve(canvas.toDataURL('image/png'))
           }
           img.onerror = reject
           img.src = src
