@@ -572,8 +572,8 @@ export default function VideoPage() {
           img.crossOrigin = 'anonymous'
           img.onload = () => {
             const canvas = document.createElement('canvas')
-            // 최대 1920px로 제한 (업로드 크기 줄임)
-            const maxSize = 1920
+            // Cloudinary 업로드용: 최대 1200px, JPEG 0.80 (용량 최소화)
+            const maxSize = 1200
             let w = img.naturalWidth, h = img.naturalHeight
             if (w > maxSize || h > maxSize) {
               const ratio = Math.min(maxSize / w, maxSize / h)
@@ -581,7 +581,7 @@ export default function VideoPage() {
             }
             canvas.width = w; canvas.height = h
             canvas.getContext('2d').drawImage(img, 0, 0, w, h)
-            resolve(canvas.toDataURL('image/png'))
+            resolve(canvas.toDataURL('image/jpeg', 0.80))
           }
           img.onerror = reject
           img.src = src
