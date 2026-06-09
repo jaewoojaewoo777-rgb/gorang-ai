@@ -62,15 +62,16 @@ const SUB_INFO = `📌 예쁜 캡션을 위한 팁
 // 글자수 제한 (사진 장수 × 45자, 화면당 2줄 기준)
 const CHARS_PER_PHOTO = 45
 
-// 캡션에서 섹션 추출 (새 포맷: [주제목], [설명글-한국어] 등)
+// 캡션에서 섹션 추출 (포맷: [주제목-라인1], [설명글-한국어] 등)
 function extractSection(captionText, section) {
   if (!captionText) return ''
   const sectionMap = {
-    title: '[주제목]',
-    ko:    '[설명글-한국어]',
-    en:    '[설명글-영어]',
-    zh:    '[설명글-중국어]',
-    ja:    '[설명글-일본어]',
+    titleLine1: '[주제목-라인1]',
+    titleLine2: '[주제목-라인2]',
+    ko:         '[설명글-한국어]',
+    en:         '[설명글-영어]',
+    zh:         '[설명글-중국어]',
+    ja:         '[설명글-일본어]',
   }
   const header = sectionMap[section]
   if (!header) return ''
@@ -89,6 +90,7 @@ function extractSection(captionText, section) {
   return result.join(' ').trim()
 }
 
+
 async function buildVideo({ imgs, koText, subText, bgmType, topTag, isPortrait, onProgress }) {
   const W = isPortrait ? 1080 : 1920
   const H = isPortrait ? 1920 : 1080
@@ -97,83 +99,76 @@ async function buildVideo({ imgs, koText, subText, bgmType, topTag, isPortrait, 
   const SAFE_BOTTOM = isPortrait ? 360 : 90
   const CROSSFADE_MS = 400
 
+  // ── 폰트 랜덤 선택 (세련된 조합 5가지) ──
+  const FONT_SETS = [
+    { title: `800 ${isPortrait?88:64}px "Apple SD Gothic Neo","Noto Sans KR",sans-serif`,  sub: `500 ${isPortrait?42:30}px "Apple SD Gothic Neo","Noto Sans KR",sans-serif` },
+    { title: `900 ${isPortrait?80:60}px "Malgun Gothic","Apple SD Gothic Neo",sans-serif`,  sub: `400 ${isPortrait?40:28}px "Malgun Gothic","Apple SD Gothic Neo",sans-serif` },
+    { title: `700 ${isPortrait?92:68}px "Apple SD Gothic Neo","Noto Sans KR",sans-serif`,   sub: `600 ${isPortrait?44:32}px "Apple SD Gothic Neo","Noto Sans KR",sans-serif` },
+    { title: `800 ${isPortrait?84:62}px "Noto Sans KR","Apple SD Gothic Neo",sans-serif`,   sub: `300 ${isPortrait?42:30}px "Noto Sans KR","Apple SD Gothic Neo",sans-serif` },
+    { title: `900 ${isPortrait?76:56}px "Apple SD Gothic Neo",sans-serif`,                  sub: `500 ${isPortrait?40:28}px "Apple SD Gothic Neo",sans-serif` },
+  ]
+  const fontSet = FONT_SETS[Math.floor(Math.random() * FONT_SETS.length)]
+
   const canvas = document.createElement('canvas')
   canvas.width = W; canvas.height = H
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
 
-  // ── 오디오: BGM + 마이크 동시 믹싱 ──
+  // ── BGM ──
   let audioCtx = null, stopBGM = null, audioTrack = null
-  const audioTracks = []
-
-  // BGM
   if (bgmType && bgmType !== 'none') {
     try {
       const resp = await fetch(bgmType)
+      if (!resp.ok) throw new Error('BGM fetch 실패: ' + resp.status)
       const arrayBuf = await resp.arrayBuffer()
       audioCtx = new (window.AudioContext || window.webkitAudioContext)()
       const audioBuf = await audioCtx.decodeAudioData(arrayBuf)
       const dest = audioCtx.createMediaStreamDestination()
       const master = audioCtx.createGain()
-      // 마이크 있으면 BGM 볼륨 낮춤 (목소리 잘 들리게)
       master.gain.value = 0.85
       master.connect(dest); master.connect(audioCtx.destination)
       const source = audioCtx.createBufferSource()
       source.buffer = audioBuf; source.loop = true
       source.connect(master); source.start(0)
       stopBGM = () => { try { source.stop() } catch {} }
-      audioTracks.push(...dest.stream.getAudioTracks())
+      audioTrack = dest.stream.getAudioTracks()[0]
     } catch (e) { console.warn('BGM 로드 실패:', e) }
-  }
-
-
-  // 오디오 트랙 합치기
-  if (audioTracks.length > 1 && audioCtx) {
-    try {
-      const mixDest = audioCtx.createMediaStreamDestination()
-      audioTracks.forEach(track => {
-        const ms = new MediaStream([track])
-        const src = audioCtx.createMediaStreamSource(ms)
-        src.connect(mixDest)
-      })
-      audioTrack = mixDest.stream.getAudioTracks()[0]
-    } catch { audioTrack = audioTracks[0] }
-  } else if (audioTracks.length === 1) {
-    audioTrack = audioTracks[0]
   }
 
   const videoStream = canvas.captureStream(FPS)
   const tracks = [...videoStream.getVideoTracks(), ...(audioTrack ? [audioTrack] : [])]
   const stream = new MediaStream(tracks)
-
-  const mimeType = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']
+  const mimeType = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4;codecs=avc1','video/mp4','video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm']
     .find(m => MediaRecorder.isTypeSupported(m)) || ''
-
   const chunks = []
   const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : {})
   recorder.ondataavailable = e => { if (e.data && e.data.size > 0) chunks.push(e.data) }
   recorder.start(200)
 
-  // 텍스트 분할 (단어/어절 단위)
+  // ── 텍스트 분할: 문장 단위 우선, 짧은 문장은 묶어서 ──
   function splitForImages(text, n) {
     if (!text) return Array(n).fill('')
     if (n === 1) return [text.trim()]
-    const sentences = text.split(/(?<=[.!?。！？\n])\s*/).map(s => s.trim()).filter(Boolean)
+    // 문장 부호로 분리
+    const sentences = text.split(/(?<=[.!?。！？])\s+/).map(s => s.trim()).filter(Boolean)
     if (sentences.length >= n) {
       const result = Array(n).fill('')
       const perChunk = Math.ceil(sentences.length / n)
-      for (let i = 0; i < n; i++) result[i] = sentences.slice(i * perChunk, (i + 1) * perChunk).join(' ').trim()
+      for (let i = 0; i < n; i++)
+        result[i] = sentences.slice(i * perChunk, (i + 1) * perChunk).join(' ').trim()
       return result
     }
+    // 문장이 부족하면 전체를 n등분 — 단어 단위
     const words = text.split(/\s+/).filter(Boolean)
     const result = Array(n).fill('')
     const perChunk = Math.ceil(words.length / n)
-    for (let i = 0; i < n; i++) result[i] = words.slice(i * perChunk, (i + 1) * perChunk).join(' ').trim()
+    for (let i = 0; i < n; i++)
+      result[i] = words.slice(i * perChunk, (i + 1) * perChunk).join(' ').trim()
     return result
   }
   const koChunks = splitForImages(koText, imgs.length)
   const subChunks = splitForImages(subText, imgs.length)
 
-  // 줄바꿈 헬퍼
+  // ── 줄바꿈 헬퍼 ──
   function wrapText(text, font, maxW) {
     ctx.font = font
     const lines = []; let line = ''
@@ -186,91 +181,63 @@ async function buildVideo({ imgs, koText, subText, bgmType, topTag, isPortrait, 
     return lines.slice(0, 2)
   }
 
-  // ── 상단 고정 태그 그리기 (틱톡 스타일) ──
-  function drawCenterTag(alpha) {
+  // ── 주제목 그리기 (화면 중앙, 2줄 구조) ──
+  // topTag 포맷: "JEJU\n천국같은 에메랄드빛 오션뷰 카페" (줄바꿈으로 구분)
+  function drawTitle(alpha) {
     if (!topTag) return
     ctx.save()
     ctx.globalAlpha = alpha
-    const tagFont = `700 ${isPortrait ? 36 : 26}px "Apple SD Gothic Neo", "Noto Sans KR", sans-serif`
-    ctx.font = tagFont
-    const tags = topTag.split(' ').filter(Boolean).slice(0, 4)  // 최대 4개
-    let x = isPortrait ? 40 : 30
-    const y = isPortrait ? 100 : 70
-    const pad = isPortrait ? 16 : 12
-    const tagH = isPortrait ? 52 : 38
-    const r = tagH / 2
-
-    tags.forEach(tag => {
-      const tw = ctx.measureText(tag).width
-      const boxW = tw + pad * 2
-
-      // 태그 배경 (반투명 흰색 알약 모양)
-      ctx.beginPath()
-      ctx.moveTo(x + r, y - tagH + 4)
-      ctx.lineTo(x + boxW - r, y - tagH + 4)
-      ctx.arcTo(x + boxW, y - tagH + 4, x + boxW, y + 4, r)
-      ctx.arcTo(x + boxW, y + 4, x + r, y + 4, r)
-      ctx.lineTo(x + r, y + 4)
-      ctx.arcTo(x, y + 4, x, y - tagH + 4, r)
-      ctx.arcTo(x, y - tagH + 4, x + r, y - tagH + 4, r)
-      ctx.closePath()
-      ctx.fillStyle = 'rgba(255,255,255,0.22)'
-      ctx.fill()
-
-      // 태그 테두리
-      ctx.strokeStyle = 'rgba(255,255,255,0.55)'
-      ctx.lineWidth = isPortrait ? 2 : 1.5
-      ctx.stroke()
-
-      // 태그 텍스트
-      ctx.shadowColor = 'rgba(0,0,0,0.6)'
-      ctx.shadowBlur = 6
-      ctx.fillStyle = '#fff'
-      ctx.textAlign = 'left'
-      ctx.textBaseline = 'middle'
-      ctx.fillText(tag, x + pad, y - tagH / 2 + 4)
-
-      x += boxW + (isPortrait ? 16 : 10)
-    })
-    ctx.restore()
-  }
-
-  // ── 타이핑 애니메이션 자막 ──
-  function drawTypingSubtitle(text, font, color, yPos, elapsed, totalMs) {
-    if (!text) return
-    // 전체 텍스트를 elapsed 비율로 잘라서 타이핑 효과
-    const revealRatio = Math.min(1, elapsed / (totalMs * 0.6))
-    const visibleLen = Math.floor(text.length * revealRatio)
-    const visible = text.slice(0, visibleLen)
-    if (!visible) return
-
-    const maxW = W - (isPortrait ? 120 : 160)
-    const lines = wrapText(visible, font, maxW)
-
-    ctx.save()
-    ctx.font = font
     ctx.textAlign = 'center'
-    ctx.textBaseline = 'bottom'
-    ctx.shadowColor = 'rgba(0,0,0,1)'
-    ctx.shadowBlur = isPortrait ? 18 : 12
-    ctx.shadowOffsetY = isPortrait ? 3 : 2
-    ctx.fillStyle = color
+    ctx.textBaseline = 'middle'
+    ctx.shadowColor = 'rgba(0,0,0,0.85)'
+    ctx.shadowBlur = isPortrait ? 32 : 22
+    ctx.shadowOffsetY = isPortrait ? 4 : 3
 
-    lines.forEach((line, li) => {
-      ctx.fillText(line, W / 2, yPos - (lines.length - 1 - li) * (parseInt(font) + 12))
-    })
+    const parts = topTag.split('\n').filter(Boolean)
+    const line1 = parts[0] || ''  // 예: "JEJU"
+    const line2 = parts[1] || ''  // 예: "천국같은 에메랄드빛 오션뷰 카페"
+
+    // 줄1 — 큰 영문 제목
+    const fs1 = isPortrait ? 120 : 88
+    const font1 = `900 ${fs1}px "Apple SD Gothic Neo","Noto Sans KR",sans-serif`
+    // 줄2 — 한글 설명
+    const fs2 = isPortrait ? 52 : 38
+    const font2 = fontSet.title
+
+    const gap = isPortrait ? 12 : 8
+    const totalH = (line1 ? fs1 : 0) + (line1 && line2 ? gap : 0) + (line2 ? fs2 : 0)
+    let y = H / 2 - totalH / 2
+
+    if (line1) {
+      ctx.font = font1
+      ctx.fillStyle = '#FFFFFF'
+      ctx.letterSpacing = isPortrait ? '8px' : '5px'
+      ctx.fillText(line1, W / 2, y + fs1 / 2)
+      y += fs1 + gap
+    }
+    if (line2) {
+      ctx.font = font2
+      ctx.fillStyle = '#F0F0F0'
+      ctx.letterSpacing = isPortrait ? '2px' : '1px'
+      const maxW = W - (isPortrait ? 120 : 160)
+      const wrapped = wrapText(line2, font2, maxW)
+      wrapped.forEach((ln, i) => {
+        ctx.fillText(ln, W / 2, y + fs2 / 2 + i * (fs2 + (isPortrait ? 10 : 8)))
+      })
+    }
+    ctx.letterSpacing = '0px'
     ctx.restore()
   }
 
-  // ── 사진 드로우 헬퍼 (줌+패닝) ──
+  // ── 사진 드로우 헬퍼 ──
   function drawImgFrame(img, t, alpha) {
-    const scale = 1 + t * 0.07
+    const scale = 1 + t * 0.06
     const iw = img.naturalWidth || img.width
     const ih = img.naturalHeight || img.height
     const ratio = Math.max(W / iw, H / ih)
     const dw = iw * ratio * scale; const dh = ih * ratio * scale
     const panDir = (imgs.indexOf(img) % 2 === 0) ? 1 : -1
-    const dx = (W - dw) / 2 + panDir * (dw - W) * t * 0.04
+    const dx = (W - dw) / 2 + panDir * (dw - W) * t * 0.03
     const dy = (H - dh) / 2
     ctx.globalAlpha = alpha
     ctx.drawImage(img, dx, dy, dw, dh)
@@ -303,42 +270,63 @@ async function buildVideo({ imgs, koText, subText, bgmType, topTag, isPortrait, 
           drawImgFrame(img, t, 1)
         }
 
-        // 상단 그라디언트 (태그 가독성)
-        const topGrad = ctx.createLinearGradient(0, 0, 0, H * 0.25)
-        topGrad.addColorStop(0, 'rgba(0,0,0,0.55)')
-        topGrad.addColorStop(1, 'rgba(0,0,0,0)')
-        ctx.fillStyle = topGrad; ctx.fillRect(0, 0, W, H)
+        // 중앙 그라디언트 (주제목 가독성)
+        const midGrad = ctx.createLinearGradient(0, H * 0.25, 0, H * 0.75)
+        midGrad.addColorStop(0, 'rgba(0,0,0,0)')
+        midGrad.addColorStop(0.5, 'rgba(0,0,0,0.35)')
+        midGrad.addColorStop(1, 'rgba(0,0,0,0)')
+        ctx.fillStyle = midGrad; ctx.fillRect(0, 0, W, H)
 
         // 하단 그라디언트 (자막 가독성)
-        const botGrad = ctx.createLinearGradient(0, H * 0.68, 0, H)
+        const botGrad = ctx.createLinearGradient(0, H * 0.65, 0, H)
         botGrad.addColorStop(0, 'rgba(0,0,0,0)')
-        botGrad.addColorStop(1, 'rgba(0,0,0,0.78)')
+        botGrad.addColorStop(1, 'rgba(0,0,0,0.82)')
         ctx.fillStyle = botGrad; ctx.fillRect(0, 0, W, H)
 
-        // 전체 페이드인
-        const fadeIn = Math.min(1, elapsed / 200)
+        // 페이드인/아웃
+        const fadeIn  = Math.min(1, elapsed / 250)
         const fadeOut = elapsed > PER_IMG - 400 ? Math.max(0, (PER_IMG - elapsed) / 400) : 1
+        const alpha   = fadeIn * fadeOut
 
-        // ── 상단 고정 태그 ──
-        drawCenterTag(fadeIn)
+        // ── 주제목 (화면 중앙) ──
+        drawTitle(alpha)
 
-        // ── 하단 자막 (타이핑 애니메이션) ──
-        const koFontSize  = isPortrait ? 52 : 38
-        const subFontSize = isPortrait ? 40 : 30
-        const koFont  = `900 ${koFontSize}px "Apple SD Gothic Neo", "Noto Sans KR", sans-serif`
-        const subFont = `700 ${subFontSize}px "Apple SD Gothic Neo", "Noto Sans KR", sans-serif`
+        // ── 하단 자막 ──
+        const koFontSize  = isPortrait ? 48 : 36
+        const subFontSize = isPortrait ? 38 : 28
+        const koFont = fontSet.sub.replace(/\d+px/, `${koFontSize}px`)
+        const subFont = fontSet.sub.replace(/\d+px/, `${subFontSize}px`)
+        const maxW = W - (isPortrait ? 120 : 160)
+
+        const koLines  = koLine  ? wrapText(koLine,  koFont,  maxW) : []
+        const subLines = subLine ? wrapText(subLine, subFont, maxW) : []
+        const koLh = koFontSize + 14
+        const subLh = subFontSize + 12
+
+        ctx.save()
+        ctx.globalAlpha = alpha
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'bottom'
+        ctx.shadowColor = 'rgba(0,0,0,1)'
+        ctx.shadowBlur = isPortrait ? 20 : 14
+        ctx.shadowOffsetY = isPortrait ? 3 : 2
 
         let y = H - SAFE_BOTTOM
 
-        if (subLine) {
-          drawTypingSubtitle(subLine, subFont, '#C8E6FF', y, elapsed, PER_IMG)
-          const subLines = wrapText(subLine.slice(0, Math.floor(subLine.length * Math.min(1, elapsed / (PER_IMG * 0.6)))), subFont, W - (isPortrait ? 120 : 160))
-          y -= (subLines.length || 1) * (subFontSize + 12) + 20
+        if (subLines.length) {
+          ctx.font = subFont; ctx.fillStyle = '#C8E6FF'
+          for (let li = subLines.length - 1; li >= 0; li--) {
+            ctx.fillText(subLines[li], W / 2, y); y -= subLh
+          }
+          y -= 20
         }
-
-        if (koLine) {
-          drawTypingSubtitle(koLine, koFont, '#FFFFFF', y, elapsed, PER_IMG)
+        if (koLines.length) {
+          ctx.font = koFont; ctx.fillStyle = '#FFFFFF'
+          for (let li = koLines.length - 1; li >= 0; li--) {
+            ctx.fillText(koLines[li], W / 2, y); y -= koLh
+          }
         }
+        ctx.restore()
 
         const progress = ((i * PER_IMG + elapsed) / TOTAL_MS) * 88
         onProgress(Math.min(progress, 88))
@@ -369,6 +357,7 @@ async function buildVideo({ imgs, koText, subText, bgmType, topTag, isPortrait, 
   onProgress(100)
   return blob
 }
+
 
 export default function VideoPage() {
   const router = useRouter()
@@ -457,9 +446,16 @@ export default function VideoPage() {
       if (manualMode) {
         koText = manualKo
         subText = manualSub
-        resolvedTitle = titleText
+        resolvedTitle = titleText  // 직접작성: "JEJU CAFE\n천국같은 오션뷰" 형식으로 입력
       } else {
-        resolvedTitle = titleText || extractSection(caption, 'title') || ''
+        const tl1 = extractSection(caption, 'titleLine1') || ''
+        const tl2 = extractSection(caption, 'titleLine2') || ''
+        // titleText(수동 수정)가 있으면 우선, 없으면 AI 생성값 사용
+        if (titleText) {
+          resolvedTitle = titleText
+        } else {
+          resolvedTitle = tl1 && tl2 ? tl1 + '\n' + tl2 : tl1 || tl2
+        }
         koText = extractSection(caption, 'ko') || ''
         subText = extractSection(caption, subLang) || ''
       }
@@ -778,13 +774,14 @@ export default function VideoPage() {
             </div>
 
             {/* 주제목 */}
-            <div style={{ fontSize:12, fontWeight:600, color:'#1A2421', marginBottom:6 }}>🎬 주제목 (화면 중앙 큰 글씨)</div>
-            <input
+            <div style={{ fontSize:12, fontWeight:600, color:'#1A2421', marginBottom:6 }}>🎬 주제목 (화면 중앙)</div>
+            <textarea
               value={titleText}
               onChange={e => setTitleText(e.target.value)}
-              placeholder="예) 천국같은 에메랄드빛 오션뷰 카페"
-              style={{ width:'100%', padding:'10px 12px', borderRadius:10, border:'1.5px solid #5DCAA5', fontSize:13, color:'#1A2421', fontFamily:'Noto Sans KR, sans-serif', boxSizing:'border-box', outline:'none', marginBottom:14 }}
+              placeholder={"1줄: JEJU CAFE\n2줄: 천국같은 에메랄드빛 오션뷰 카페"}
+              style={{ width:'100%', minHeight:70, padding:'10px 12px', borderRadius:10, border:'1.5px solid #5DCAA5', fontSize:13, color:'#1A2421', fontFamily:'Noto Sans KR, sans-serif', boxSizing:'border-box', outline:'none', marginBottom:4, resize:'none', lineHeight:1.6 }}
             />
+            <div style={{ fontSize:11, color:'#B0BAB6', marginBottom:10 }}>↵ 엔터로 줄 구분 — 1줄: 영문 제목 / 2줄: 한국어 설명</div>
 
             {/* 설명글 */}
             <div style={{ fontSize:12, fontWeight:600, color:'#1A2421', marginBottom:6 }}>🇰🇷 설명글 (하단 자막)</div>
@@ -833,15 +830,18 @@ export default function VideoPage() {
                     {/* 주제목 */}
                     <div style={{ marginBottom:12 }}>
                       <div style={{ fontSize:11, color:'#6B7875', fontWeight:600, marginBottom:4 }}>🎬 주제목 (화면 중앙)</div>
-                      <div style={{ fontSize:15, color:'#1A2421', fontWeight:700, lineHeight:1.5 }}>
-                        {extractSection(caption, 'title') || '주제목 생성 중...'}
+                      <div style={{ fontSize:13, color:'#1A2421', lineHeight:1.7 }}>
+                        <span style={{ fontWeight:700 }}>{extractSection(caption, 'titleLine1') || '—'}</span>
+                        <br/>
+                        <span style={{ color:'#3A4744' }}>{extractSection(caption, 'titleLine2') || '—'}</span>
                       </div>
                       <input
                         value={titleText}
                         onChange={e => setTitleText(e.target.value)}
-                        placeholder={extractSection(caption, 'title') || '주제목 직접 수정 (비워두면 AI 생성 사용)'}
-                        style={{ width:'100%', marginTop:6, padding:'8px 10px', borderRadius:8, border:'1.5px solid #C8EFE0', fontSize:13, color:'#1A2421', fontFamily:'Noto Sans KR, sans-serif', boxSizing:'border-box', outline:'none' }}
+                        placeholder="직접 수정: JEJU CAFE (엔터) 천국같은 오션뷰 (비우면 AI 생성 사용)"
+                        style={{ width:'100%', marginTop:8, padding:'8px 10px', borderRadius:8, border:'1.5px solid #C8EFE0', fontSize:12, color:'#1A2421', fontFamily:'Noto Sans KR, sans-serif', boxSizing:'border-box', outline:'none' }}
                       />
+                      <div style={{ fontSize:11, color:'#B0BAB6', marginTop:4 }}>✏️ 수정 시 줄바꿈(↵)으로 2줄 구분 — 예) JEJU↵천국같은 오션뷰 카페</div>
                     </div>
 
                     {/* 한국어 설명글 */}
