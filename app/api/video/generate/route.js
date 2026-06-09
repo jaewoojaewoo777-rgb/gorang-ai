@@ -8,19 +8,19 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 })
 
-// 이미지 base64 → Cloudinary image 업로드
+// 이미지 base64 → Cloudinary image 업로드 (Promise)
 function uploadImage(dataUrl, publicId) {
   return new Promise((resolve, reject) => {
     cloudinary.uploader.upload(dataUrl, {
       public_id:     publicId,
       overwrite:     true,
-      resource_type: 'image',
-      folder:        'gorang-video',
+      resource_type: 'image',   // 반드시 image
+      folder:        'gorang-slides',
     }, (err, res) => err ? reject(err) : resolve(res))
   })
 }
 
-// 텍스트를 n개로 분할
+// 텍스트 분할
 function splitText(text, n) {
   if (!text) return Array(n).fill('')
   if (n === 1) return [text.trim()]
@@ -40,14 +40,17 @@ function splitText(text, n) {
   return res
 }
 
-// 텍스트에서 특수문자 이스케이프 (Cloudinary text overlay용)
-function escapeText(text) {
+// Cloudinary text overlay용 특수문자 이스케이프
+function esc(text) {
   return (text || '')
+    .replace(/%/g, '%25')
     .replace(/,/g, '%2C')
     .replace(/\//g, '%2F')
     .replace(/\$/g, '%24')
     .replace(/!/g, '%21')
     .replace(/\?/g, '%3F')
+    .replace(/#/g, '%23')
+    .replace(/&/g, '%26')
 }
 
 export async function POST(request) {
@@ -61,7 +64,6 @@ export async function POST(request) {
       subText,
       titleLine1,
       titleLine2,
-      bgmUrl,
       isPortrait,
       fontStyle = 0,
     } = await request.json()
@@ -69,15 +71,14 @@ export async function POST(request) {
     if (!imageDataUrls?.length)
       return NextResponse.json({ error: '이미지 없음' }, { status: 400 })
 
-    const W = isPortrait ? 1080 : 1920
-    const H = isPortrait ? 1920 : 1080
-    const uid    = session.userId
-    const ts     = Date.now()
-    const n      = imageDataUrls.length
-    const SLIDE  = 3    // 슬라이드당 초
-    const TRANS  = 0.5  // 전환 초
+    const W    = isPortrait ? 1080 : 1920
+    const H    = isPortrait ? 1920 : 1080
+    const uid  = session.userId
+    const ts   = Date.now()
+    const n    = imageDataUrls.length
+    const SLIDE = 3
 
-    // ── 1. 이미지들을 Cloudinary에 업로드 (image 타입) ──
+    // ── 1. 이미지를 Cloudinary에 image로 업로드 ──
     const uploaded = await Promise.all(
       imageDataUrls.map((d, i) =>
         uploadImage(d, `gorang_${uid}_${ts}_${i}`)
@@ -87,11 +88,11 @@ export async function POST(request) {
 
     // ── 2. 폰트 설정 ──
     const FONTS = [
-      { titleSize: isPortrait ? 110 : 80, capSize: isPortrait ? 46 : 34, subSize: isPortrait ? 52 : 38 },
-      { titleSize: isPortrait ? 100 : 74, capSize: isPortrait ? 42 : 30, subSize: isPortrait ? 48 : 36 },
-      { titleSize: isPortrait ? 120 : 88, capSize: isPortrait ? 48 : 36, subSize: isPortrait ? 56 : 40 },
-      { titleSize: isPortrait ? 95  : 70, capSize: isPortrait ? 44 : 32, subSize: isPortrait ? 50 : 36 },
-      { titleSize: isPortrait ? 105 : 76, capSize: isPortrait ? 46 : 34, subSize: isPortrait ? 54 : 40 },
+      { tSize: isPortrait ? 110 : 80, kSize: isPortrait ? 46 : 34, sSize: isPortrait ? 36 : 26 },
+      { tSize: isPortrait ? 100 : 74, kSize: isPortrait ? 42 : 30, sSize: isPortrait ? 34 : 24 },
+      { tSize: isPortrait ? 120 : 88, kSize: isPortrait ? 50 : 36, sSize: isPortrait ? 40 : 28 },
+      { tSize: isPortrait ? 95  : 70, kSize: isPortrait ? 44 : 32, sSize: isPortrait ? 36 : 26 },
+      { tSize: isPortrait ? 105 : 76, kSize: isPortrait ? 46 : 34, sSize: isPortrait ? 38 : 28 },
     ]
     const fc = FONTS[fontStyle % FONTS.length]
 
@@ -99,42 +100,44 @@ export async function POST(request) {
     const koChunks  = splitText(koText,  n)
     const subChunks = splitText(subText, n)
 
-    // ── 4. 슬라이드쇼 변환 체인 구성 ──
-    // 첫 번째 이미지를 비디오로 업로드하고,
-    // 나머지를 splice(concat)로 이어붙이는 방식
+    // ── 4. Cloudinary 변환 체인 (image → video slideshow) ──
+    // 핵심: 첫 이미지를 video 타입으로 업로드 + splice로 나머지 이어붙임
+    // image 타입 overlay를 video에 splice하는 올바른 방법
     const transformation = []
 
-    // 베이스: 첫 이미지 크롭 + 지속시간
+    // 베이스 크기 설정
     transformation.push({ width: W, height: H, crop: 'fill', gravity: 'center' })
     transformation.push({ duration: SLIDE })
 
-    // 나머지 이미지들 splice로 이어붙임
+    // 나머지 이미지 슬라이드 이어붙임 (fl_splice)
     for (let i = 1; i < pids.length; i++) {
-      const safePid = pids[i].replace(/\//g, ':')
+      // public_id의 / → : 변환 (Cloudinary overlay 규칙)
+      const overlayId = pids[i].replace(/\//g, ':')
       transformation.push({
-        overlay: `image:${safePid}`,
+        overlay: `image:${overlayId}`,
+        flags: 'splice',
         width: W, height: H,
         crop: 'fill', gravity: 'center',
-        flags: `splice:transition_(name_fade;du_${TRANS})`,
         duration: SLIDE,
       })
       transformation.push({ flags: 'layer_apply' })
     }
 
-    // 주제목 (첫 슬라이드 동안 중앙 표시)
+    // 주제목 오버레이 (첫 슬라이드 동안)
     if (titleLine1) {
+      const yOffset = titleLine2 ? -Math.round(fc.tSize * 0.65) : 0
       transformation.push({
         overlay: {
           font_family:    'Arial',
-          font_size:      fc.titleSize,
+          font_size:      fc.tSize,
           font_weight:    'bold',
           font_style:     'italic',
           letter_spacing: 8,
-          text:           escapeText(titleLine1),
+          text:           esc(titleLine1),
         },
-        color:        '#FFFFFF',
+        color:        'white',
         gravity:      'center',
-        y:            titleLine2 ? -Math.round(fc.titleSize * 0.65) : 0,
+        y:            yOffset,
         start_offset: 0,
         end_offset:   SLIDE,
       })
@@ -144,13 +147,13 @@ export async function POST(request) {
       transformation.push({
         overlay: {
           font_family: 'Arial',
-          font_size:   fc.subSize,
-          font_weight: 'light',
-          text:        escapeText(titleLine2),
+          font_size:   Math.round(fc.tSize * 0.48),
+          font_weight: 'normal',
+          text:        esc(titleLine2),
         },
-        color:        '#F0F0F0',
+        color:        'white',
         gravity:      'center',
-        y:            Math.round(fc.titleSize * 0.4),
+        y:            Math.round(fc.tSize * 0.38),
         start_offset: 0,
         end_offset:   SLIDE,
       })
@@ -159,24 +162,24 @@ export async function POST(request) {
 
     // 슬라이드별 하단 자막
     for (let i = 0; i < n; i++) {
-      const startSec = i * SLIDE
-      const endSec   = startSec + SLIDE
-      const safeY_ko  = isPortrait ? 420 : 110
-      const safeY_sub = isPortrait ? 370 : 70
+      const s = i * SLIDE
+      const e = s + SLIDE
+      const koY  = isPortrait ? 420 : 110
+      const subY = isPortrait ? 370 : 70
 
       if (koChunks[i]) {
         transformation.push({
           overlay: {
             font_family: 'Arial',
-            font_size:   fc.capSize,
+            font_size:   fc.kSize,
             font_weight: 'bold',
-            text:        escapeText(koChunks[i]),
+            text:        esc(koChunks[i]),
           },
-          color:        '#FFFFFF',
+          color:        'white',
           gravity:      'south',
-          y:            safeY_ko,
-          start_offset: startSec,
-          end_offset:   endSec,
+          y:            koY,
+          start_offset: s,
+          end_offset:   e,
         })
         transformation.push({ flags: 'layer_apply' })
       }
@@ -184,41 +187,44 @@ export async function POST(request) {
         transformation.push({
           overlay: {
             font_family: 'Arial',
-            font_size:   Math.round(fc.capSize * 0.82),
+            font_size:   fc.sSize,
             font_weight: 'normal',
-            text:        escapeText(subChunks[i]),
+            text:        esc(subChunks[i]),
           },
-          color:        '#C8E6FF',
+          color:        'rgb:C8E6FF',
           gravity:      'south',
-          y:            safeY_sub,
-          start_offset: startSec,
-          end_offset:   endSec,
+          y:            subY,
+          start_offset: s,
+          end_offset:   e,
         })
         transformation.push({ flags: 'layer_apply' })
       }
     }
 
-    // 최종 품질
     transformation.push({ quality: 'auto:good', fetch_format: 'mp4' })
 
-    // ── 5. 첫 이미지를 video 타입으로 재업로드 + eager 변환으로 슬라이드쇼 생성 ──
-    // 핵심: 먼저 image로 올린 후, video resource_type으로 다시 업로드해서 변환
-    const firstPid = `gorang_base_${uid}_${ts}`
+    // ── 5. 슬라이드쇼 영상 생성 ──
+    // resource_type: 'video' + 첫 이미지 base64 → Cloudinary가 이미지를 비디오 클립으로 처리
+    const outputId = `gorang_out_${uid}_${ts}`
     const videoResult = await new Promise((resolve, reject) => {
-      cloudinary.uploader.upload(imageDataUrls[0], {
-        public_id:     firstPid,
-        resource_type: 'video',   // video 타입으로 업로드 (이미지→비디오 변환)
-        folder:        'gorang-video-output',
-        overwrite:     true,
-        eager: [{ transformation, format: 'mp4' }],
-        eager_async:   false,     // 동기 처리 (완료까지 대기)
-      }, (err, res) => err ? reject(err) : resolve(res))
+      cloudinary.uploader.upload(
+        `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/image/upload/${pids[0]}`,
+        {
+          public_id:     outputId,
+          resource_type: 'video',
+          folder:        'gorang-output',
+          overwrite:     true,
+          eager:         [{ transformation, format: 'mp4' }],
+          eager_async:   false,
+        },
+        (err, res) => err ? reject(err) : resolve(res)
+      )
     })
 
     const videoUrl = videoResult.eager?.[0]?.secure_url || videoResult.secure_url
     if (!videoUrl) throw new Error('영상 URL을 받지 못했어요')
 
-    // ── 6. 임시 이미지 정리 ──
+    // 임시 이미지 삭제
     pids.forEach(pid => {
       cloudinary.uploader.destroy(pid, { resource_type: 'image' }).catch(() => {})
     })
@@ -226,11 +232,11 @@ export async function POST(request) {
     return NextResponse.json({ ok: true, videoUrl, duration: n * SLIDE })
 
   } catch (err) {
-    console.error('Cloudinary 영상 생성 오류:', err)
+    console.error('Cloudinary 오류:', err)
     return NextResponse.json({
       ok: false,
       error: err.message || '영상 생성 실패',
-      detail: err.http_code || null,
+      detail: err.http_code,
     }, { status: 500 })
   }
 }
