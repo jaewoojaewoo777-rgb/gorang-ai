@@ -53,16 +53,16 @@ const CHARS_PER_PHOTO = 45
 function extractByLang(captionText, langCode) {
   const lines = captionText.split('\n')
   const markers = {
-    ko: ['한국어', '🇰🇷'],
+    ko: ['한국어', '🇰🇷', 'Korean'],
     en: ['영어', '🇺🇸', 'English'],
-    ja: ['일본어', '🇯🇵'],
-    zh: ['중국어', '🇨🇳'],
+    ja: ['일본어', '🇯🇵', 'Japanese'],
+    zh: ['중국어', '🇨🇳', 'Chinese'],
   }
   const target = markers[langCode] || []
   let collecting = false
   const result = []
   for (const line of lines) {
-    const isHeader = /캡션:|英語|英语|日本語|中文|한국어|영어|일본어|중국어/.test(line) && line.length < 30
+    const isHeader = /캡션:|英語|英语|日本語|中文|한국어|영어|일본어|중국어|Korean|English|Japanese|Chinese/.test(line) && line.length < 40
     if (target.some(m => line.includes(m)) && isHeader) { collecting = true; continue }
     if (isHeader && collecting) break  // 다음 언어 헤더 만나면 종료
     if (collecting && line.trim() && !line.trim().startsWith('#')) {
@@ -122,15 +122,29 @@ async function buildVideo({ imgs, koText, subText, bgmType, isPortrait, onProgre
   recorder.ondataavailable = e => { if (e.data && e.data.size > 0) chunks.push(e.data) }
   recorder.start(200)
 
-  // 텍스트를 사진 장수만큼 분할
+  // 텍스트를 사진 장수만큼 분할 (단어/어절 단위로 잘라서 글자 중간 잘림 방지)
   function splitForImages(text, n) {
     if (!text) return Array(n).fill('')
-    const perChunk = Math.ceil(text.length / n)
-    const chunks = []
-    for (let i = 0; i < n; i++) {
-      chunks.push(text.slice(i * perChunk, (i + 1) * perChunk).trim())
+    if (n === 1) return [text.trim()]
+    // 문장 구분자로 먼저 나누기 (마침표, 느낌표, 물음표, 줄바꿈)
+    const sentences = text.split(/(?<=[.!?。！？\n])\s*/).map(s => s.trim()).filter(Boolean)
+    if (sentences.length >= n) {
+      // 문장이 사진 수 이상이면 균등 배분
+      const result = Array(n).fill('')
+      const perChunk = Math.ceil(sentences.length / n)
+      for (let i = 0; i < n; i++) {
+        result[i] = sentences.slice(i * perChunk, (i + 1) * perChunk).join(' ').trim()
+      }
+      return result
     }
-    return chunks
+    // 문장이 부족하면 공백/어절 단위로 분할
+    const words = text.split(/\s+/).filter(Boolean)
+    const result = Array(n).fill('')
+    const perChunk = Math.ceil(words.length / n)
+    for (let i = 0; i < n; i++) {
+      result[i] = words.slice(i * perChunk, (i + 1) * perChunk).join(' ').trim()
+    }
+    return result
   }
   const koChunks = splitForImages(koText, imgs.length)
   const subChunks = splitForImages(subText, imgs.length)
