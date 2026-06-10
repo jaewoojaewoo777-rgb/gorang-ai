@@ -22,13 +22,27 @@ function splitText(text, count) {
   return res
 }
 
+// Railway 작업 완료될 때까지 폴링
+async function waitForJob(railwayUrl, jobId, maxWaitMs = 55000) {
+  const start = Date.now()
+  while (Date.now() - start < maxWaitMs) {
+    await new Promise(r => setTimeout(r, 2000)) // 2초 대기
+    const res = await fetch(`${railwayUrl}/status/${jobId}`)
+    const data = await res.json()
+    console.log(`[폴링] jobId=${jobId} status=${data.status}`)
+    if (data.status === 'done') return data.videoUrl
+    if (data.status === 'error') throw new Error(data.error || '렌더링 실패')
+  }
+  throw new Error('렌더링 타임아웃 (55초 초과)')
+}
+
 export async function POST(request) {
   const session = await getSession()
   if (!session.userId) return NextResponse.json({ error: '로그인 필요' }, { status: 401 })
 
   try {
     const {
-      imageDataUrls,  // Supabase URL 배열
+      imageDataUrls,
       koText,
       subText,
       titleLine1,
@@ -43,8 +57,6 @@ export async function POST(request) {
       return NextResponse.json({ error: '이미지 없음' }, { status: 400 })
 
     const n = imageDataUrls.length
-
-    // 자막 배열 구성
     const koChunks  = splitText(koText, n)
     const subChunks = splitText(subText, n)
     const captionArray = captions || koChunks.map((ko, i) => ({
@@ -52,11 +64,11 @@ export async function POST(request) {
       sub: subChunks[i] || '',
     }))
 
-    // Railway 서버로 렌더링 요청
     const railwayUrl = process.env.RAILWAY_VIDEO_SERVER_URL
     if (!railwayUrl) throw new Error('RAILWAY_VIDEO_SERVER_URL 환경변수 없음')
 
-    const response = await fetch(`${railwayUrl}/render`, {
+    // 1. Railway에 렌더링 요청 (즉시 jobId 반환)
+    const renderRes = await fetch(`${railwayUrl}/render`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -68,20 +80,22 @@ export async function POST(request) {
         titleLine1: titleLine1 || '',
         titleLine2: titleLine2 || '',
       }),
-      signal: AbortSignal.timeout(120000), // 2분 타임아웃
     })
 
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({ error: '렌더링 서버 오류' }))
+    if (!renderRes.ok) {
+      const err = await renderRes.json().catch(() => ({ error: '렌더링 서버 오류' }))
       throw new Error(err.error || '렌더링 서버 오류')
     }
 
-    const result = await response.json()
-    if (!result.videoUrl) throw new Error('영상 URL 없음')
+    const { jobId } = await renderRes.json()
+    console.log('[video/generate] jobId:', jobId)
+
+    // 2. 완료될 때까지 폴링
+    const videoUrl = await waitForJob(railwayUrl, jobId)
 
     return NextResponse.json({
       ok: true,
-      videoUrl: result.videoUrl,
+      videoUrl,
       duration: n * 3,
     })
 
