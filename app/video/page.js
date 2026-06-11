@@ -114,6 +114,11 @@ export default function VideoPage() {
   const [videos, setVideos] = useState({ portrait: null, landscape: null })
   const [uploading, setUploading] = useState(false)
   const [uploadResults, setUploadResults] = useState([])
+
+  // 플랫폼별 캡션 state
+  const [platformCaptions, setPlatformCaptions] = useState({})
+  const [captionGenerating, setCaptionGenerating] = useState({})
+
   const photoRef = useRef()
   const videoRef = useRef()
 
@@ -152,11 +157,52 @@ export default function VideoPage() {
     setStep(2)
   }
 
+  // 플랫폼별 AI 캡션 자동생성
+  const generatePlatformCaption = async (platformId) => {
+    setCaptionGenerating(prev => ({ ...prev, [platformId]: true }))
+    const baseKo = extractSection(caption, 'ko') || manualKo || ''
+    const title = extractSection(caption, 'titleLine1') || titleText?.split('\n')[0] || ''
+
+    const prompts = {
+      youtube_shorts: `제주도 소상공인 유튜브 쇼츠용 캡션을 만들어줘. JSON으로만 응답. 다른 텍스트 없이 JSON만.
+제목힌트: ${title}
+내용힌트: ${baseKo}
+{"title":"제목(100자이내)","description":"설명(이모지+해시태그포함,500자이내)","tags":["태그1","태그2"]}`,
+      youtube: `제주도 소상공인 유튜브 일반영상용 캡션을 만들어줘. SEO최적화. JSON으로만 응답. 다른 텍스트 없이 JSON만.
+제목힌트: ${title}
+내용힌트: ${baseKo}
+{"title":"제목(100자이내)","description":"설명(SEO키워드포함,줄바꿈활용,1000자이내)","tags":["태그1","태그2"]}`,
+      instagram: `제주도 소상공인 인스타그램 릴스용 캡션을 만들어줘. JSON으로만 응답. 다른 텍스트 없이 JSON만.
+제목힌트: ${title}
+내용힌트: ${baseKo}
+{"caption":"캡션(이모지+줄바꿈포함,150자이내)","hashtags":["해시태그1","해시태그2"]}`,
+      tiktok: `제주도 소상공인 틱톡용 캡션을 만들어줘. 짧고 트렌디하게. JSON으로만 응답. 다른 텍스트 없이 JSON만.
+제목힌트: ${title}
+내용힌트: ${baseKo}
+{"caption":"한줄캡션(50자이내)","hashtags":["해시태그1","해시태그2","해시태그3"]}`,
+    }
+
+    try {
+      const res = await fetch('/api/caption/platform', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ platformId, prompt: prompts[platformId] }),
+      })
+      const data = await res.json()
+      if (data.result) {
+        setPlatformCaptions(prev => ({ ...prev, [platformId]: data.result }))
+      }
+    } catch(e) {
+      console.error('플랫폼 캡션 생성 오류:', e)
+    } finally {
+      setCaptionGenerating(prev => ({ ...prev, [platformId]: false }))
+    }
+  }
+
   const handleGenerate = async () => {
     if (!files.length) return
     setGenerating(true); setGenProgress(0); setGenError('')
     try {
-      // ── 텍스트 결정 ──
       let koText, subText, titleLine1, titleLine2
       if (manualMode) {
         koText = manualKo
@@ -175,7 +221,6 @@ export default function VideoPage() {
         subText = extractSection(caption, subLang) || ''
       }
 
-      // ── BGM URL 결정 ──
       let bgmUrl = null
       if (selectedBGM === 'none') {
         bgmUrl = null
@@ -200,7 +245,6 @@ export default function VideoPage() {
         bgmUrl = `https://hjvgekdeqqgxawefrzlk.supabase.co/storage/v1/object/public/BGM/${picked}`
       }
 
-      // ── 이미지를 Supabase Storage에 업로드 → URL 배열 ──
       setGenMsg('🖼️ 이미지 업로드 중...')
       setGenProgress(5)
       const sb = createClient(
@@ -226,7 +270,6 @@ export default function VideoPage() {
       const needLandscape = ratios.includes('landscape')
       const result = {}
 
-      // ── Railway FFmpeg 서버로 영상 생성 ──
       if (needPortrait) {
         setGenMsg('📱 세로 영상 제작 중... (10~30초 소요)')
         setGenProgress(20)
@@ -275,6 +318,7 @@ export default function VideoPage() {
     for (const pid of selectedPlatforms) {
       const platform = PLATFORMS.find(p => p.id === pid)
       const videoData = videos[platform.ratio]
+      const pc = platformCaptions[pid] || {}
 
       if (pid === 'instagram') {
         results.push({ platform: pid, status: '⏳ 심사 후 업로드 예정' }); continue
@@ -293,11 +337,24 @@ export default function VideoPage() {
 
       const form = new FormData()
       const isShorts = platform.ratio === 'portrait'
-      const uploadCaption = manualMode ? `${manualKo}\n${manualSub}` : caption
+
+      // 플랫폼별 캡션 우선 사용, 없으면 기본 캡션 사용
+      let uploadTitle = pc.title || `고랑AI - ${platform.ratio === 'portrait' ? '세로' : '가로'} - ${new Date().toLocaleDateString('ko')}`
+      let uploadCaption = ''
+      if (pid === 'tiktok') {
+        uploadCaption = [pc.caption, ...(pc.hashtags || [])].filter(Boolean).join(' ')
+      } else if (pid === 'instagram') {
+        uploadCaption = [pc.caption, (pc.hashtags || []).join(' ')].filter(Boolean).join('\n\n')
+      } else {
+        const tags = (pc.tags || []).map(t => `#${t}`).join(' ')
+        uploadCaption = [pc.description, tags].filter(Boolean).join('\n\n') || (manualMode ? `${manualKo}\n${manualSub}` : caption)
+      }
+
       form.append('video', blob, `gorang-${platform.ratio}.mp4`)
       form.append('caption', uploadCaption)
-      form.append('title', `고랑AI - ${platform.ratio === 'portrait' ? '세로' : '가로'} - ${new Date().toLocaleDateString('ko')}`)
+      form.append('title', uploadTitle)
       form.append('isShorts', isShorts ? 'true' : 'false')
+      if (pc.tags) form.append('tags', JSON.stringify(pc.tags))
 
       try {
         const endpoint = pid === 'tiktok' ? '/api/upload/tiktok' : '/api/upload/youtube'
@@ -323,6 +380,7 @@ export default function VideoPage() {
     setVideoFile(null); setVideoPreview(null); setUploadResults([])
     setGenError(''); setGenProgress(0); setCaptionMode(null)
     setCustomPrompt(''); setManualKo(''); setManualSub(''); setManualMode(false)
+    setPlatformCaptions({}); setCaptionGenerating({})
   }
 
   const goBackToCaptionSelect = () => {
@@ -350,7 +408,7 @@ export default function VideoPage() {
 
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column' }}>
-      <TopBar title="영상 만들기" sub={!mode ? '제작 방식 선택' : step===1 ? '설정' : step===2 ? (manualMode ? '캡션 작성' : '캡션 확인') : '미리보기'} />
+      <TopBar title="영상 만들기" sub={!mode ? '제작 방식 선택' : step===1 ? '설정' : step===2 ? (manualMode ? '캡션 작성' : '캡션 확인') : step===3 ? '캡션 & 업로드' : '완료'} />
       <div style={{ flex:1, padding:'0 18px 24px', overflowY:'auto' }}>
 
         {!mode && (
@@ -633,7 +691,7 @@ export default function VideoPage() {
             {!generating && !captionLoading && (
               mode === 'photos'
                 ? <PrimaryBtn onClick={handleGenerate} disabled={!files.length}>🎬 영상 만들기 시작</PrimaryBtn>
-                : <PrimaryBtn onClick={() => setStep(3)}>다음 → 업로드 확인</PrimaryBtn>
+                : <PrimaryBtn onClick={() => setStep(3)}>다음 → 캡션 설정</PrimaryBtn>
             )}
             <GhostBtn onClick={() => { setStep(1); if(!manualMode) setCaptionMode(null) }} style={{ marginTop:8 }}>← 돌아가기</GhostBtn>
           </>
@@ -659,18 +717,120 @@ export default function VideoPage() {
               <video src={videoPreview} controls playsInline
                 style={{ width:'100%', borderRadius:12, maxHeight:200, objectFit:'cover', marginBottom:12 }} />
             )}
-            <div style={{ background:'#F4F6F5', borderRadius:12, padding:'12px 14px', marginBottom:14 }}>
-              <div style={{ fontSize:12, fontWeight:700, color:'#1A2421', marginBottom:8 }}>업로드 채널</div>
+
+            {/* 플랫폼별 캡션 & 해시태그 */}
+            <div style={{ marginBottom:14 }}>
+              <div style={{ fontSize:12, fontWeight:700, color:'#1A2421', marginBottom:10 }}>📝 플랫폼별 캡션 & 해시태그</div>
               {selectedPlatforms.map(pid => {
                 const p = PLATFORMS.find(x => x.id === pid)
+                const pc = platformCaptions[pid] || {}
+                const isGenerating = captionGenerating[pid]
                 return (
-                  <div key={pid} style={{ display:'flex', justifyContent:'space-between', fontSize:12, padding:'5px 0', borderBottom:'1px solid #E6EAE8' }}>
-                    <span>{p?.icon} {p?.name}</span>
-                    <span style={{ color:'#6B7875', fontSize:11 }}>{p?.ratioLabel}</span>
+                  <div key={pid} style={{ background:'#fff', border:'1.5px solid #E6EAE8', borderRadius:14, padding:'14px', marginBottom:10 }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+                      <div style={{ fontSize:13, fontWeight:700, color:'#1A2421' }}>{p?.icon} {p?.name}</div>
+                      <button
+                        onClick={() => generatePlatformCaption(pid)}
+                        disabled={isGenerating}
+                        style={{ padding:'5px 10px', borderRadius:8, border:'1.5px solid #1D9E75', background: isGenerating ? '#E1F5EE' : '#fff', color:'#1D9E75', fontSize:11, fontWeight:700, cursor: isGenerating ? 'not-allowed' : 'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                        {isGenerating ? '생성 중...' : '✨ AI 자동생성'}
+                      </button>
+                    </div>
+
+                    {(pid === 'youtube_shorts' || pid === 'youtube') && (
+                      <>
+                        <div style={{ fontSize:11, color:'#6B7875', fontWeight:600, marginBottom:4 }}>제목</div>
+                        <input
+                          value={pc.title || ''}
+                          onChange={e => setPlatformCaptions(prev => ({ ...prev, [pid]: { ...prev[pid], title: e.target.value } }))}
+                          placeholder="영상 제목 입력"
+                          style={{ width:'100%', padding:'8px 10px', borderRadius:8, border:'1.5px solid #E6EAE8', fontSize:12, color:'#1A2421', fontFamily:'Noto Sans KR, sans-serif', boxSizing:'border-box', outline:'none', marginBottom:8 }}
+                        />
+                        <div style={{ fontSize:11, color:'#6B7875', fontWeight:600, marginBottom:4 }}>설명</div>
+                        <textarea
+                          value={pc.description || ''}
+                          onChange={e => setPlatformCaptions(prev => ({ ...prev, [pid]: { ...prev[pid], description: e.target.value } }))}
+                          placeholder="영상 설명 (SEO 키워드, 링크 포함)"
+                          style={{ width:'100%', minHeight: pid === 'youtube' ? 100 : 70, padding:'8px 10px', borderRadius:8, border:'1.5px solid #E6EAE8', fontSize:12, color:'#1A2421', fontFamily:'Noto Sans KR, sans-serif', boxSizing:'border-box', outline:'none', resize:'vertical', lineHeight:1.5, marginBottom:8 }}
+                        />
+                        <div style={{ fontSize:11, color:'#6B7875', fontWeight:600, marginBottom:6 }}>태그</div>
+                        {(pc.tags || []).length > 0 && (
+                          <div style={{ display:'flex', flexWrap:'wrap', gap:5, marginBottom:6 }}>
+                            {(pc.tags || []).map((tag, i) => (
+                              <span key={i} style={{ padding:'3px 8px', borderRadius:20, background:'#E1F5EE', color:'#0F6E56', fontSize:11 }}>#{tag}</span>
+                            ))}
+                          </div>
+                        )}
+                        <input
+                          value={(pc.tags || []).join(', ')}
+                          onChange={e => setPlatformCaptions(prev => ({ ...prev, [pid]: { ...prev[pid], tags: e.target.value.split(',').map(t => t.trim()).filter(Boolean) } }))}
+                          placeholder="태그1, 태그2, 태그3 (쉼표 구분)"
+                          style={{ width:'100%', padding:'8px 10px', borderRadius:8, border:'1.5px solid #E6EAE8', fontSize:12, color:'#1A2421', fontFamily:'Noto Sans KR, sans-serif', boxSizing:'border-box', outline:'none' }}
+                        />
+                      </>
+                    )}
+
+                    {pid === 'instagram' && (
+                      <>
+                        <div style={{ fontSize:11, color:'#6B7875', fontWeight:600, marginBottom:4 }}>캡션</div>
+                        <textarea
+                          value={pc.caption || ''}
+                          onChange={e => setPlatformCaptions(prev => ({ ...prev, [pid]: { ...prev[pid], caption: e.target.value } }))}
+                          placeholder="이모지 + 감성 캡션 입력"
+                          style={{ width:'100%', minHeight:80, padding:'8px 10px', borderRadius:8, border:'1.5px solid #E6EAE8', fontSize:12, color:'#1A2421', fontFamily:'Noto Sans KR, sans-serif', boxSizing:'border-box', outline:'none', resize:'vertical', lineHeight:1.5, marginBottom:8 }}
+                        />
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                          <div style={{ fontSize:11, color:'#6B7875', fontWeight:600 }}>해시태그</div>
+                          <div style={{ fontSize:10, color: (pc.hashtags?.length || 0) > 25 ? '#EF9F27' : '#B0BAB6' }}>
+                            {pc.hashtags?.length || 0} / 30
+                          </div>
+                        </div>
+                        {(pc.hashtags || []).length > 0 && (
+                          <div style={{ display:'flex', flexWrap:'wrap', gap:5, marginBottom:6 }}>
+                            {(pc.hashtags || []).map((tag, i) => (
+                              <span key={i} style={{ padding:'3px 8px', borderRadius:20, background:'#E1F5EE', color:'#0F6E56', fontSize:11 }}>{tag.startsWith('#') ? tag : '#'+tag}</span>
+                            ))}
+                          </div>
+                        )}
+                        <input
+                          value={(pc.hashtags || []).join(' ')}
+                          onChange={e => setPlatformCaptions(prev => ({ ...prev, [pid]: { ...prev[pid], hashtags: e.target.value.split(/\s+/).filter(Boolean) } }))}
+                          placeholder="#제주카페 #오션뷰 #jeju (공백 구분)"
+                          style={{ width:'100%', padding:'8px 10px', borderRadius:8, border:'1.5px solid #E6EAE8', fontSize:12, color:'#1A2421', fontFamily:'Noto Sans KR, sans-serif', boxSizing:'border-box', outline:'none' }}
+                        />
+                      </>
+                    )}
+
+                    {pid === 'tiktok' && (
+                      <>
+                        <div style={{ fontSize:11, color:'#6B7875', fontWeight:600, marginBottom:4 }}>캡션 (한 줄)</div>
+                        <input
+                          value={pc.caption || ''}
+                          onChange={e => setPlatformCaptions(prev => ({ ...prev, [pid]: { ...prev[pid], caption: e.target.value } }))}
+                          placeholder="짧고 임팩트 있는 한 줄 캡션"
+                          style={{ width:'100%', padding:'8px 10px', borderRadius:8, border:'1.5px solid #E6EAE8', fontSize:12, color:'#1A2421', fontFamily:'Noto Sans KR, sans-serif', boxSizing:'border-box', outline:'none', marginBottom:8 }}
+                        />
+                        <div style={{ fontSize:11, color:'#6B7875', fontWeight:600, marginBottom:6 }}>트렌드 해시태그</div>
+                        {(pc.hashtags || []).length > 0 && (
+                          <div style={{ display:'flex', flexWrap:'wrap', gap:5, marginBottom:6 }}>
+                            {(pc.hashtags || []).map((tag, i) => (
+                              <span key={i} style={{ padding:'3px 8px', borderRadius:20, background:'#E1F5EE', color:'#0F6E56', fontSize:11 }}>{tag.startsWith('#') ? tag : '#'+tag}</span>
+                            ))}
+                          </div>
+                        )}
+                        <input
+                          value={(pc.hashtags || []).join(' ')}
+                          onChange={e => setPlatformCaptions(prev => ({ ...prev, [pid]: { ...prev[pid], hashtags: e.target.value.split(/\s+/).filter(Boolean) } }))}
+                          placeholder="#jeju #제주여행 #카페투어 (공백 구분)"
+                          style={{ width:'100%', padding:'8px 10px', borderRadius:8, border:'1.5px solid #E6EAE8', fontSize:12, color:'#1A2421', fontFamily:'Noto Sans KR, sans-serif', boxSizing:'border-box', outline:'none' }}
+                        />
+                      </>
+                    )}
                   </div>
                 )
               })}
             </div>
+
             <PrimaryBtn onClick={handleUpload} disabled={uploading}>
               {uploading ? '업로드 중...' : `🚀 ${selectedPlatforms.length}개 채널 업로드`}
             </PrimaryBtn>
