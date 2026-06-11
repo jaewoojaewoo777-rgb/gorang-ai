@@ -19,6 +19,25 @@ export default function RootLayout({ children }) {
         <div className="app-shell">
           {children}
         </div>
+        <footer style={{
+          background: '#111',
+          color: 'rgba(255,255,255,0.45)',
+          fontSize: 11,
+          lineHeight: 1.8,
+          padding: '20px 24px',
+          textAlign: 'center',
+          fontFamily: 'Noto Sans KR, sans-serif',
+        }}>
+          <div style={{ marginBottom: 4, color: 'rgba(255,255,255,0.25)', fontSize: 10 }}>
+            고랑AI 서비스 운영사
+          </div>
+          <div>상호: 마음스튜디오 &nbsp;|&nbsp; 대표: 송은주</div>
+          <div>사업자등록번호: 724-34-00950</div>
+          <div>사업장: 제주특별자치도 서귀포시 대정읍 신영로94번길 16, 1층</div>
+          <div style={{ marginTop: 6, color: 'rgba(255,255,255,0.25)', fontSize: 10 }}>
+            © 2024 마음스튜디오. All rights reserved.
+          </div>
+        </footer>
       </body>
     </html>
   )
