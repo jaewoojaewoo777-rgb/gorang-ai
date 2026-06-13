@@ -97,14 +97,14 @@ export async function POST(request) {
     // ✅ Streak 업데이트
     await updateStreak(session.userId)
 
-    const videoUrl = isShorts
+    const finalVideoUrl = isShorts
       ? `https://youtube.com/shorts/${ytResult.id}`
       : `https://youtube.com/watch?v=${ytResult.id}`
 
     return NextResponse.json({
       ok: true,
       youtubeVideoId: ytResult.id,
-      youtubeUrl: videoUrl,
+      youtubeUrl: finalVideoUrl,
     })
   } catch (err) {
     console.error('[YouTube] 업로드 오류:', err)
