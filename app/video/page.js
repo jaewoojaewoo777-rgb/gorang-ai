@@ -158,24 +158,57 @@ useEffect(() => {
       const body = { shopName: s.shop_name, shopLocation: s.shop_location, shopType: s.shop_type, subLang }
       if (prompt) body.customPrompt = prompt
 
-      // 사진이 있으면 최대 3장 base64로 변환해서 전송 → Claude Vision이 실제 사진 보고 캡션 생성
+      // 사진이 있으면 최대 3장 → 작게 리사이즈 후 base64 전송 (Claude Vision이 실제 사진 보고 캡션 생성)
       if (files.length > 0) {
-        const toBase64 = (file) => new Promise((res, rej) => {
-          const reader = new FileReader()
-          reader.onload = () => res(reader.result.split(',')[1])
-          reader.onerror = rej
-          reader.readAsDataURL(file)
+        // canvas로 긴 변 768px, JPEG 품질 0.7로 압축 → body 크기 초과(413) 방지
+        const resizeToBase64 = (file) => new Promise((resolve, reject) => {
+          const img = new Image()
+          const url = URL.createObjectURL(file)
+          img.onload = () => {
+            URL.revokeObjectURL(url)
+            const MAX = 768
+            let { width, height } = img
+            if (width > height && width > MAX) { height = Math.round(height * MAX / width); width = MAX }
+            else if (height >= width && height > MAX) { width = Math.round(width * MAX / height); height = MAX }
+            const canvas = document.createElement('canvas')
+            canvas.width = width; canvas.height = height
+            const ctx = canvas.getContext('2d')
+            ctx.drawImage(img, 0, 0, width, height)
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.7)
+            resolve(dataUrl.split(',')[1])
+          }
+          img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('이미지 로드 실패')) }
+          img.src = url
         })
-        const imgList = await Promise.all(files.slice(0, 3).map(toBase64))
-        body.imageBase64List = imgList
+        try {
+          const imgList = await Promise.all(files.slice(0, 3).map(resizeToBase64))
+          body.imageBase64List = imgList
+        } catch (e) {
+          console.error('이미지 압축 실패, 텍스트만으로 생성:', e)
+        }
       }
 
-      const d = await (await fetch('/api/caption', {
+      const res = await fetch('/api/caption', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
-      })).json()
-      setCaption(d.result || '')
-    } catch { setCaption('') }
+      })
+      if (!res.ok) {
+        console.error('캡션 API 응답 오류:', res.status)
+        alert('캡션 생성에 실패했어요. 사진 장수를 줄이거나 다시 시도해주세요.')
+        setCaption(''); setCaptionLoading(false); return
+      }
+      const d = await res.json()
+      if (!d.result) {
+        console.error('캡션 결과 비어있음:', d)
+        alert('캡션 생성 결과가 비어있어요. 다시 시도해주세요.')
+        setCaption(''); setCaptionLoading(false); return
+      }
+      setCaption(d.result)
+    } catch (e) {
+      console.error('캡션 생성 오류:', e)
+      alert('캡션 생성 중 오류가 발생했어요. 다시 시도해주세요.')
+      setCaption('')
+    }
     setCaptionLoading(false)
   }
 
