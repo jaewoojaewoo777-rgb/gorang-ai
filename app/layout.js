@@ -12,32 +12,30 @@ export default function RootLayout({ children }) {
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Noto Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet" />
         <meta name="theme-color" content="#1D9E75" />
       </head>
       <body>
         <div className="app-shell">
           {children}
+          {/* 사업자 정보 — app-shell 안 맨 아래 */}
+          <footer style={{
+            borderTop: '1px solid #F0F2F1',
+            background: '#F9FAFA',
+            color: '#B0BAB6',
+            fontSize: 10,
+            lineHeight: 1.9,
+            padding: '16px 20px',
+            textAlign: 'center',
+            fontFamily: 'Noto Sans KR, sans-serif',
+          }}>
+            <div>상호: 마음스튜디오 &nbsp;|&nbsp; 대표: 송은주 &nbsp;|&nbsp; 사업자등록번호: 724-34-00950</div>
+            <div>사업장: 제주특별자치도 서귀포시 대정읍 신영로94번길 16, 1층</div>
+            <div style={{ marginTop: 4, color: '#D0D5D2', fontSize: 10 }}>
+              © 2024 마음스튜디오. All rights reserved.
+            </div>
+          </footer>
         </div>
-        <footer style={{
-          background: '#111',
-          color: 'rgba(255,255,255,0.45)',
-          fontSize: 11,
-          lineHeight: 1.8,
-          padding: '20px 24px',
-          textAlign: 'center',
-          fontFamily: 'Noto Sans KR, sans-serif',
-        }}>
-          <div style={{ marginBottom: 4, color: 'rgba(255,255,255,0.25)', fontSize: 10 }}>
-            고랑AI 서비스 운영사
-          </div>
-          <div>상호: 마음스튜디오 &nbsp;|&nbsp; 대표: 송은주</div>
-          <div>사업자등록번호: 724-34-00950</div>
-          <div>사업장: 제주특별자치도 서귀포시 대정읍 신영로94번길 16, 1층</div>
-          <div style={{ marginTop: 6, color: 'rgba(255,255,255,0.25)', fontSize: 10 }}>
-            © 2024 마음스튜디오. All rights reserved.
-          </div>
-        </footer>
       </body>
     </html>
   )
