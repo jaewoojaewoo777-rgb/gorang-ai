@@ -4,6 +4,9 @@ import { supabaseAdmin } from '../../../../lib/db'
 import { uploadYouTubeVideo, refreshAccessToken } from '../../../../lib/google'
 import { updateStreak } from '../../../../lib/streak'
 
+export const dynamic = 'force-dynamic'
+export const maxDuration = 60
+
 export async function POST(request) {
   const session = await getSession()
   console.log('[YouTube] session:', JSON.stringify(session))
@@ -93,3 +96,11 @@ export async function POST(request) {
     return NextResponse.json({ error: '업로드 실패', detail: err.message }, { status: 500 })
   }
 }
+export const config = {
+  api: {
+    bodyParser: false,
+    responseLimit: false,
+  },
+}
+
+export const maxDuration = 60
