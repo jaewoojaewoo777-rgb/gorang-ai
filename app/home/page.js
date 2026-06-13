@@ -70,6 +70,11 @@ export default function HomePage() {
         </Card>
 
         <PrimaryBtn onClick={() => router.push('/video')}>+ 새 영상 만들기</PrimaryBtn>
+
+        <button onClick={() => router.push('/help')}
+          style={{ width:'100%', marginTop:10, padding:'12px', borderRadius:14, border:'1.5px solid #E6EAE8', background:'#fff', color:'#6B7875', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+          💬 도움말 · 사용법이 궁금하세요?
+        </button>
       </div>
       <BottomNav />
     </div>
