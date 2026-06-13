@@ -51,6 +51,7 @@ export async function POST(request) {
       isPortrait,
       subLang = 'none',
       captions,
+      shopType = null,
     } = await request.json()
 
     if (!imageDataUrls?.length)
@@ -79,6 +80,7 @@ export async function POST(request) {
         subLang,
         titleLine1: titleLine1 || '',
         titleLine2: titleLine2 || '',
+        shopType: shopType || '',
       }),
     })
 
