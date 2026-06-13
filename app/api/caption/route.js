@@ -6,7 +6,7 @@ export async function POST(request) {
   const session = await getSession()
   if (!session.userId) return NextResponse.json({ error: '로그인 필요' }, { status: 401 })
 
-  const { shopName, shopLocation, shopType, customPrompt, subLang, imageBase64List } = await request.json()
+  const { shopName, shopLocation, shopType, customPrompt, subLang, imageBase64List, tone } = await request.json()
 
   try {
     const result = await generateCaption({
@@ -16,6 +16,7 @@ export async function POST(request) {
       customPrompt,
       subLang,
       imageBase64List: imageBase64List || [],
+      tone: tone || 'trendy',
     })
     return NextResponse.json({ result })
   } catch (err) {
