@@ -68,6 +68,12 @@ export default function SettingsPage() {
           ))}
         </div>
 
+        <button onClick={() => router.push('/help')}
+          style={{ width:'100%', padding:14, borderRadius:14, border:'1.5px solid #E6EAE8', background:'#fff', color:'#1A2421', fontSize:14, fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', marginBottom:12, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <span>💬 도움말 · 사용법 문의</span>
+          <span style={{ color:'#B0BAB6' }}>›</span>
+        </button>
+
         <button onClick={() => { if(confirm('로그아웃 하시겠어요?')) router.push('/') }}
           style={{ width:'100%', padding:14, borderRadius:14, border:'1.5px solid #E6EAE8', background:'#fff', color:'#6B7875', fontSize:14, fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
           로그아웃
