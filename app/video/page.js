@@ -650,7 +650,7 @@ ${manualSub}`.trim()
                 <div onClick={() => videoRef.current.click()}
                   style={{ border:'2px dashed #B0BAB6', borderRadius:14, padding:'18px', textAlign:'center', marginBottom:12, cursor:'pointer', background:'#F4F6F5' }}>
                   {videoPreview
-                    ? <video src={videoPreview} style={{ width:'100%', borderRadius:8, maxHeight:160, objectFit:'cover' }} controls />
+                    ? <video src={`${videoPreview}#t=0.1`} preload="metadata" playsInline style={{ width:'100%', borderRadius:8, maxHeight:160, objectFit:'cover' }} controls />
                     : <><div style={{ fontSize:26, marginBottom:4 }}>🎬</div><div style={{ fontSize:13, color:'#6B7875', fontWeight:600 }}>영상 파일 선택</div><div style={{ fontSize:11, color:'#B0BAB6', marginTop:2 }}>MP4, MOV</div></>}
                 </div>
               </>
@@ -918,19 +918,19 @@ ${manualSub}`.trim()
             {videos.portrait && (
               <div style={{ marginBottom:12 }}>
                 <div style={{ fontSize:11, color:'#6B7875', marginBottom:5, fontWeight:500 }}>📱 세로 영상 (9:16)</div>
-                <video src={videos.portrait.url} controls playsInline
+                <video src={`${videos.portrait.url}#t=0.1`} controls playsInline preload="metadata"
                   style={{ width:'100%', borderRadius:12, maxHeight:220, objectFit:'contain', background:'#000' }} />
               </div>
             )}
             {videos.landscape && (
               <div style={{ marginBottom:12 }}>
                 <div style={{ fontSize:11, color:'#6B7875', marginBottom:5, fontWeight:500 }}>🖥️ 가로 영상 (16:9)</div>
-                <video src={videos.landscape.url} controls playsInline
+                <video src={`${videos.landscape.url}#t=0.1`} controls playsInline preload="metadata"
                   style={{ width:'100%', borderRadius:12, maxHeight:160, objectFit:'contain', background:'#000' }} />
               </div>
             )}
             {videoPreview && !videos.portrait && !videos.landscape && (
-              <video src={videoPreview} controls playsInline
+              <video src={`${videoPreview}#t=0.1`} controls playsInline preload="metadata"
                 style={{ width:'100%', borderRadius:12, maxHeight:200, objectFit:'cover', marginBottom:12 }} />
             )}
 
