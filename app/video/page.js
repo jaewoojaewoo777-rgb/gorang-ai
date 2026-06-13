@@ -264,6 +264,12 @@ useEffect(() => {
     if (!files.length) return
     setGenerating(true); setGenProgress(0); setGenError('')
     try {
+      // 업종 정보 가져오기 (영상 서버 폰트 테마 선택용)
+      let shopType = null
+      try {
+        const s = await (await fetch('/api/shop')).json()
+        shopType = s.shop_type || null
+      } catch {}
       let koText, subText, titleLine1, titleLine2
       if (manualMode) {
         koText = manualKo
@@ -338,7 +344,7 @@ useEffect(() => {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             imageDataUrls, koText, subText, titleLine1, titleLine2,
-            bgmUrl, isPortrait: true, subLang,
+            bgmUrl, isPortrait: true, subLang, shopType,
           })
         })
         const data = await res.json()
@@ -354,7 +360,7 @@ useEffect(() => {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             imageDataUrls, koText, subText, titleLine1, titleLine2,
-            bgmUrl, isPortrait: false, subLang,
+            bgmUrl, isPortrait: false, subLang, shopType,
           })
         })
         const data = await res.json()
