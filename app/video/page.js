@@ -385,16 +385,14 @@ useEffect(() => {
         results.push({ platform: pid, status: '⏳ 심사 후 업로드 예정' }); continue
       }
 
-      let blob = videoData?.blob || videoFile
-      if (!blob && videoData?.url) {
-        try {
-          const resp = await fetch(videoData.url)
-          blob = await resp.blob()
-        } catch {
-          results.push({ platform: pid, status: '❌ 영상 다운로드 실패' }); continue
-        }
+      // Supabase에 영상 URL이 있으면 그 URL만 서버로 보냄 (모바일 부담 ↓, 타임아웃 방지)
+      // URL이 없을 때(직접 올린 영상)만 blob 직접 전송
+      const supabaseUrl = videoData?.url || null
+      let blob = null
+      if (!supabaseUrl) {
+        blob = videoData?.blob || videoFile
+        if (!blob) { results.push({ platform: pid, status: '❌ 파일 없음' }); continue }
       }
-      if (!blob) { results.push({ platform: pid, status: '❌ 파일 없음' }); continue }
 
       const form = new FormData()
       const isShorts = platform.ratio === 'portrait'
@@ -411,7 +409,12 @@ useEffect(() => {
         uploadCaption = [pc.description, tags].filter(Boolean).join('\n\n') || (manualMode ? `${manualKo}\n${manualSub}` : caption)
       }
 
-      form.append('video', blob, `gorang-${platform.ratio}.mp4`)
+      // URL 있으면 URL만, 없으면 영상 파일 직접
+      if (supabaseUrl) {
+        form.append('videoUrl', supabaseUrl)
+      } else {
+        form.append('video', blob, `gorang-${platform.ratio}.mp4`)
+      }
       form.append('caption', uploadCaption)
       form.append('title', uploadTitle)
       form.append('isShorts', isShorts ? 'true' : 'false')
