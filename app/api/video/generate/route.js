@@ -6,19 +6,42 @@ import { getSession } from '../../../../lib/session'
 function splitText(text, count) {
   if (!text) return Array(count).fill('')
   if (count === 1) return [text.trim()]
-  const sentences = text.split(/(?<=[.!?。！？])\s+/).map(s => s.trim()).filter(Boolean)
-  if (sentences.length >= count) {
-    const res = Array(count).fill('')
-    const per = Math.ceil(sentences.length / count)
-    for (let i = 0; i < count; i++)
-      res[i] = sentences.slice(i * per, (i + 1) * per).join(' ').trim()
-    return res
+
+  // 문장 단위로 분리 (마침표/물음표/느낌표 + 쉼표 기준)
+  // 단어로 쪼개면 "두 / 통창 너머"처럼 어색하게 끊기므로 문장/구 단위만 사용
+  let units = text
+    .split(/(?<=[.!?。！？])\s+/)        // 1차: 문장부호로
+    .map(s => s.trim())
+    .filter(Boolean)
+
+  // 문장이 사진 수보다 적으면 쉼표로 한 번 더 분리 (단, 단어 쪼개기는 안 함)
+  if (units.length < count) {
+    const reSplit = []
+    for (const u of units) {
+      if (u.length > 20 && u.includes(',')) {
+        // 긴 문장만 쉼표로 분리
+        reSplit.push(...u.split(/,\s*/).map(s => s.trim()).filter(Boolean))
+      } else {
+        reSplit.push(u)
+      }
+    }
+    units = reSplit
   }
-  const words = text.split(/\s+/).filter(Boolean)
+
   const res = Array(count).fill('')
-  const per = Math.ceil(words.length / count)
-  for (let i = 0; i < count; i++)
-    res[i] = words.slice(i * per, (i + 1) * per).join(' ').trim()
+
+  if (units.length >= count) {
+    // 유닛이 충분하면 균등 배분
+    const per = Math.ceil(units.length / count)
+    for (let i = 0; i < count; i++)
+      res[i] = units.slice(i * per, (i + 1) * per).join(' ').trim()
+  } else {
+    // 유닛이 모자라면: 각 유닛을 사진에 하나씩, 나머지 사진은 빈칸
+    // (문장 중간이 잘리는 것보다 빈칸이 자연스러움)
+    for (let i = 0; i < units.length; i++) {
+      res[i] = units[i]
+    }
+  }
   return res
 }
 
