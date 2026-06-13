@@ -16,12 +16,12 @@ const BGM_LIST = [
 ]
 
 const BGM_FILES = {
-  ocean:   ['bgm-ocean.mp3', 'bgm-ocean1.mp3'],
-  cafe:    ['bgm-cafe.mp3', 'bgm-cafe1.mp3', 'bgm-cafe2.mp3', 'bgm-cafe3.mp3'],
-  lofi:    ['bgm-lofi.mp3', 'bgm-lofi1.mp3'],
-  luxury:  ['bgm-luxury.mp3', 'bgm-luxury1.mp3'],
-  bright:  ['bgm-bright.mp3', 'bgm-bright1.mp3', 'bgm-bright2.mp3', 'bgm-bright3.mp3'],
-  night:   ['bgm-night.mp3'],
+  ocean:   ['bgm-ocean.mp3', 'bgm-ocean1.mp3', 'bgm-ocean2.mp3', 'bgm-ocean3.mp3', 'bgm-ocean4.mp3'],
+  cafe:    ['bgm-cafe.mp3', 'bgm-cafe1.mp3', 'bgm-cafe2.mp3', 'bgm-cafe3.mp3', 'bgm-cafe4.mp3'],
+  lofi:    ['bgm-lofi.mp3', 'bgm-lofi1.mp3', 'bgm-lofi2.mp3', 'bgm-lofi3.mp3', 'bgm-lofi4.mp3'],
+  luxury:  ['bgm-luxury.mp3', 'bgm-luxury1.mp3', 'bgm-luxury2.mp3', 'bgm-luxury3.mp3', 'bgm-luxury4.mp3'],
+  bright:  ['bgm-bright.mp3', 'bgm-bright1.mp3', 'bgm-bright2.mp3', 'bgm-bright3.mp3', 'bgm-bright4.mp3'],
+  night:   ['bgm-night.mp3', 'bgm-night1.mp3', 'bgm-night2.mp3', 'bgm-night3.mp3', 'bgm-night4.mp3'],
 }
 
 const SUB_LANG = [
