@@ -118,10 +118,21 @@ export default function VideoPage() {
   // 플랫폼별 캡션 state
   const [platformCaptions, setPlatformCaptions] = useState({})
   const [captionGenerating, setCaptionGenerating] = useState({})
-
+  const [streakInfo, setStreakInfo] = useState(null)
+  useEffect(() => {
+  fetch('/api/streak')
+    .then(r => r.json())
+    .then(d => { if (d.ok) setStreakInfo(d) })
+    .catch(() => {})
+}, [])
   const photoRef = useRef()
   const videoRef = useRef()
-
+useEffect(() => {
+  fetch('/api/streak')
+    .then(r => r.json())
+    .then(d => { if (d.ok) setStreakInfo(d) })
+    .catch(() => {})
+}, [])
   const charLimit = Math.max(1, files.length) * CHARS_PER_PHOTO
 
   const handlePhotos = e => {
@@ -389,8 +400,29 @@ export default function VideoPage() {
 
   if (step === 4) return (
     <div style={{ flex:1, display:'flex', flexDirection:'column', padding:'32px 24px', alignItems:'center' }}>
-      <div style={{ fontSize:40, marginBottom:12 }}>🎉</div>
-      <div style={{ fontSize:20, fontWeight:700, color:'#1A2421', marginBottom:16 }}>완료!</div>
+<div style={{ fontSize:40, marginBottom:12 }}>🎉</div>
+<div style={{ fontSize:20, fontWeight:700, color:'#1A2421', marginBottom:8 }}>완료!</div>
+{streakInfo && streakInfo.currentStreak > 0 && (
+  <div style={{
+    background: 'linear-gradient(135deg, #FF6B35, #FF8C42)',
+    borderRadius: 12,
+    padding: '10px 18px',
+    marginBottom: 16,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+  }}>
+    <span style={{ fontSize: 22 }}>🔥</span>
+    <div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>
+        {streakInfo.currentStreak}주 연속 업로드 중!
+      </div>
+      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)' }}>
+        역대 최장 {streakInfo.longestStreak}주 · 이번 주 {streakInfo.thisWeekCount}회 업로드
+      </div>
+    </div>
+  </div>
+)}
       {uploadResults.map((r, i) => {
         const p = PLATFORMS.find(x => x.id === r.platform)
         return (
