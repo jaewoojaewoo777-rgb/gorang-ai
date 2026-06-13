@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { getSession } from '../../../../lib/session'
-import { getStreak } from '../../../../lib/streak'
+import { getSession } from '../../../lib/session'
+import { getStreak } from '../../../lib/streak'
 
 export async function GET() {
   const session = await getSession()
