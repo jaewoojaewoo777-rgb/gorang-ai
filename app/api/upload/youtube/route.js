@@ -96,11 +96,3 @@ export async function POST(request) {
     return NextResponse.json({ error: '업로드 실패', detail: err.message }, { status: 500 })
   }
 }
-export const config = {
-  api: {
-    bodyParser: false,
-    responseLimit: false,
-  },
-}
-
-export const maxDuration = 60
