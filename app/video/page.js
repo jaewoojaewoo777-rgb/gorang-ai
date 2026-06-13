@@ -419,7 +419,32 @@ useEffect(() => {
 
       try {
         const endpoint = pid === 'tiktok' ? '/api/upload/tiktok' : '/api/upload/youtube'
-        const data = await (await fetch(endpoint, { method: 'POST', body: form })).json()
+
+        // 모바일은 업로드가 느려 타임아웃이 잘 남 → 5분까지 기다림
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000)
+
+        let res
+        try {
+          res = await fetch(endpoint, { method: 'POST', body: form, signal: controller.signal })
+        } finally {
+          clearTimeout(timeoutId)
+        }
+
+        // 응답을 텍스트로 먼저 받아서 JSON 파싱 시도 (JSON 아닐 때 대비)
+        const raw = await res.text()
+        let data
+        try {
+          data = JSON.parse(raw)
+        } catch {
+          // JSON이 아니면 서버 에러 (502, 504 등). 영상은 올라갔을 수 있음
+          results.push({
+            platform: pid,
+            status: res.ok ? '✅ 업로드 완료 (확인 필요)' : `⚠️ 서버 응답 지연 — 실제로는 올라갔을 수 있어요 (${res.status})`,
+          })
+          continue
+        }
+
         const url = pid === 'tiktok'
           ? (data.ok ? '틱톡 앱에서 비공개로 확인' : undefined)
           : data.youtubeUrl
@@ -428,7 +453,17 @@ useEffect(() => {
           status: data.ok ? '✅ 업로드 완료' : `❌ 실패 (${data.detail || data.error || ''})`,
           url,
         })
-      } catch { results.push({ platform: pid, status: '❌ 네트워크 오류' }) }
+      } catch (e) {
+        // AbortError = 타임아웃. 이 경우 실제로는 업로드 완료됐을 가능성 높음
+        if (e.name === 'AbortError') {
+          results.push({
+            platform: pid,
+            status: '⚠️ 응답이 늦어요 — 영상은 올라갔을 수 있으니 채널에서 확인해주세요',
+          })
+        } else {
+          results.push({ platform: pid, status: `❌ 네트워크 오류 (${e.message || e.name || '알 수 없음'})` })
+        }
+      }
     }
     setUploadResults(results)
 
