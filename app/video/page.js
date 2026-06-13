@@ -411,7 +411,7 @@ ${manualSub}`.trim()
         const finalCaption = pc.caption || captionText || ''
         if (!finalCaption) continue
         try {
-          const res = await fetch('/api/captions/save', {
+          const res = await fetch('/api/caption/save', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -453,7 +453,7 @@ ${manualSub}`.trim()
     const newStarred = !starredMap[platform]
     setStarredMap(prev => ({ ...prev, [platform]: newStarred }))
     try {
-      await fetch('/api/captions/save', {
+      await fetch('/api/caption/save', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ captionId, starred: newStarred }),
