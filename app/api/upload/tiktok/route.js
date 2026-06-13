@@ -8,6 +8,7 @@ import {
   getTikTokPostStatus,
 } from '../../../../lib/tiktok'
 import { v2 as cloudinary } from 'cloudinary'
+import { updateStreak } from '../../../../lib/streak'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -36,7 +37,6 @@ async function convertToMp4(buffer) {
       .end(buffer)
   })
 
-  // 진단용: Cloudinary가 읽은 원본 메타데이터
   const meta = {
     fps: uploaded && uploaded.frame_rate,
     frames: uploaded && uploaded.nb_frames,
@@ -52,7 +52,6 @@ async function convertToMp4(buffer) {
     })
   }
 
-  // 변환된 mp4 받아오기 (처리중이면 재시도)
   let mp4Buffer = null
   for (let i = 0; i < 8; i++) {
     const resp = await fetch(mp4Url)
@@ -123,8 +122,6 @@ export async function POST(request) {
     const arrayBuffer = await file.arrayBuffer()
     let videoBuffer = Buffer.from(arrayBuffer)
 
-    // 브라우저 영상은 mp4여도 가변 프레임레이트(VFR)라 틱톡이 거부함
-    // → 형식과 무관하게 항상 Cloudinary로 재인코딩해서 일정 프레임레이트(CFR) 강제
     const conv = await convertToMp4(videoBuffer)
     videoBuffer = conv.buffer
     const srcMeta = conv.meta
@@ -136,7 +133,6 @@ export async function POST(request) {
       mimeType: 'video/mp4',
     })
 
-    // 게시 상태 폴링 — 서버리스 60초 제한 안에서 최대한 오래(약 52초) 대기해 최종 결과를 잡는다
     let status = 'PROCESSING'
     let failReason = null
     let polls = 0
@@ -162,6 +158,11 @@ export async function POST(request) {
       tiktok_publish_id: publish_id,
     })
 
+    // ✅ PUBLISH_COMPLETE 됐을 때만 streak 업데이트
+    if (status === 'PUBLISH_COMPLETE') {
+      await updateStreak(session.userId)
+    }
+
     const metaStr = ` | 원본fps:${srcMeta ? srcMeta.fps : '?'} 길이:${srcMeta ? srcMeta.duration : '?'}s 폴링${polls}회`
 
     if (status === 'PUBLISH_COMPLETE') {
@@ -183,6 +184,6 @@ export async function POST(request) {
     })
   } catch (err) {
     console.error('틱톡 업로드 오류:', err)
-    return NextResponse.json({ error: '업로드 실패', detail: err.message }, { status: 500 })
+    return NextResponse.json({ error: '업로드 실패', detail: err.message }, { status: 500 })\
   }
 }
