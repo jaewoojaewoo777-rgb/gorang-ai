@@ -75,12 +75,20 @@ export async function POST(request) {
       subLang = 'none',
       captions,
       shopType = null,
+      mediaItems,   // [{ type:'photo'|'video', url }] — 사진+영상 혼합
     } = await request.json()
 
-    if (!imageDataUrls?.length)
+    // 혼합 모드: mediaItems가 있으면 사진만 골라 자막 매칭
+    const hasMedia = Array.isArray(mediaItems) && mediaItems.length > 0
+
+    if (!hasMedia && !imageDataUrls?.length)
       return NextResponse.json({ error: '이미지 없음' }, { status: 400 })
 
-    const n = imageDataUrls.length
+    // 자막은 '사진' 개수 기준으로 분배 (영상 구간은 자막 없음)
+    const photoCount = hasMedia
+      ? mediaItems.filter(m => m.type === 'photo').length
+      : imageDataUrls.length
+    const n = Math.max(1, photoCount)
     const koChunks  = splitText(koText, n)
     const subChunks = splitText(subText, n)
     const captionArray = captions || koChunks.map((ko, i) => ({
@@ -96,7 +104,8 @@ export async function POST(request) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        imageUrls: imageDataUrls,
+        imageUrls: imageDataUrls || [],
+        mediaItems: hasMedia ? mediaItems : null,
         bgmUrl: bgmUrl || null,
         captions: captionArray,
         orientation: isPortrait ? 'vertical' : 'horizontal',
