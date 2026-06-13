@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getSession } from '../../../../lib/session'
 import { supabaseAdmin } from '../../../../lib/db'
 import { uploadYouTubeVideo, refreshAccessToken } from '../../../../lib/google'
+import { updateStreak } from '../../../../lib/streak'
 
 export async function POST(request) {
   const session = await getSession()
@@ -74,6 +75,9 @@ export async function POST(request) {
       status: 'done',
       youtube_video_id: ytResult.id,
     })
+
+    // ✅ Streak 업데이트
+    await updateStreak(session.userId)
 
     const videoUrl = isShorts
       ? `https://youtube.com/shorts/${ytResult.id}`
