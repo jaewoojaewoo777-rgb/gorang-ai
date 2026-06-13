@@ -116,6 +116,8 @@ export default function VideoPage() {
   const [uploadResults, setUploadResults] = useState([])
   const [savedCaptionIds, setSavedCaptionIds] = useState({})  // { platform: captionId }
   const [starredMap, setStarredMap] = useState({})            // { platform: true/false }
+  const [editingCaption, setEditingCaption] = useState(false)
+  const [editCaptionDraft, setEditCaptionDraft] = useState('')
 
   // 플랫폼별 캡션 state
   const [platformCaptions, setPlatformCaptions] = useState({})
@@ -155,6 +157,19 @@ useEffect(() => {
       const s = await (await fetch('/api/shop')).json()
       const body = { shopName: s.shop_name, shopLocation: s.shop_location, shopType: s.shop_type, subLang }
       if (prompt) body.customPrompt = prompt
+
+      // 사진이 있으면 최대 3장 base64로 변환해서 전송 → Claude Vision이 실제 사진 보고 캡션 생성
+      if (files.length > 0) {
+        const toBase64 = (file) => new Promise((res, rej) => {
+          const reader = new FileReader()
+          reader.onload = () => res(reader.result.split(',')[1])
+          reader.onerror = rej
+          reader.readAsDataURL(file)
+        })
+        const imgList = await Promise.all(files.slice(0, 3).map(toBase64))
+        body.imageBase64List = imgList
+      }
+
       const d = await (await fetch('/api/caption', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
@@ -767,13 +782,14 @@ ${manualSub}`.trim()
                         <br/>
                         <span style={{ color:'#3A4744' }}>{extractSection(caption, 'titleLine2') || '—'}</span>
                       </div>
-                      <input
+                      <textarea
                         value={titleText}
                         onChange={e => setTitleText(e.target.value)}
-                        placeholder="직접 수정: JEJU CAFE (엔터) 천국같은 오션뷰 (비우면 AI 생성 사용)"
-                        style={{ width:'100%', marginTop:8, padding:'8px 10px', borderRadius:8, border:'1.5px solid #C8EFE0', fontSize:12, color:'#1A2421', fontFamily:'Noto Sans KR, sans-serif', boxSizing:'border-box', outline:'none' }}
+                        placeholder={"1줄: MANGO CAFE\n2줄: 망고가 가득한 감성 카페\n(비우면 AI 생성 그대로 사용)"}
+                        rows={2}
+                        style={{ width:'100%', marginTop:8, padding:'8px 10px', borderRadius:8, border:'1.5px solid #C8EFE0', fontSize:12, color:'#1A2421', fontFamily:'Noto Sans KR, sans-serif', boxSizing:'border-box', outline:'none', resize:'none', lineHeight:1.6 }}
                       />
-                      <div style={{ fontSize:11, color:'#B0BAB6', marginTop:4 }}>✏️ 수정 시 줄바꿈(↵)으로 2줄 구분</div>
+                      <div style={{ fontSize:11, color:'#B0BAB6', marginTop:4 }}>✏️ 1줄: 영문 제목 / 2줄: 한국어 훅 (엔터로 구분)</div>
                     </div>
                     <div style={{ borderTop:'1px solid rgba(0,0,0,0.06)', paddingTop:10, marginBottom:8 }}>
                       <div style={{ fontSize:11, color:'#6B7875', fontWeight:600, marginBottom:4 }}>🇰🇷 설명글 (하단 자막)</div>
@@ -792,11 +808,40 @@ ${manualSub}`.trim()
                   </div>
                   <div style={{ display:'flex', gap:8, marginBottom:14 }}>
                     <GhostBtn onClick={() => { setTitleText(''); runAICaption(customPrompt || null) }} style={{ flex:1, padding:'10px', fontSize:12 }}>↻ 다시 생성</GhostBtn>
-                    <button onClick={() => { const t = prompt('캡션 전체 수정 (고급):', caption); if(t!==null) setCaption(t) }}
+                    <button onClick={() => { setEditCaptionDraft(caption); setEditingCaption(true) }}
                       style={{ flex:1, padding:10, borderRadius:14, border:'1.5px solid #1D9E75', background:'transparent', color:'#1D9E75', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                       ✎ 직접 수정
                     </button>
                   </div>
+
+                  {/* 캡션 전체 수정 인라인 UI */}
+                  {editingCaption && (
+                    <div style={{ background:'#fff', border:'1.5px solid #1D9E75', borderRadius:14, padding:14, marginBottom:14 }}>
+                      <div style={{ fontSize:11, color:'#0F6E56', fontWeight:700, marginBottom:8 }}>✎ 캡션 직접 수정</div>
+                      <textarea
+                        value={editCaptionDraft}
+                        onChange={e => setEditCaptionDraft(e.target.value)}
+                        style={{
+                          width:'100%', minHeight:180, padding:'10px 12px',
+                          borderRadius:10, border:'1.5px solid #C8EFE0',
+                          fontSize:12, color:'#1A2421',
+                          fontFamily:'Noto Sans KR, sans-serif',
+                          boxSizing:'border-box', outline:'none',
+                          lineHeight:1.7, resize:'vertical',
+                        }}
+                      />
+                      <div style={{ display:'flex', gap:8, marginTop:10 }}>
+                        <button onClick={() => setEditingCaption(false)}
+                          style={{ flex:1, padding:'9px', borderRadius:10, border:'1.5px solid #E6EAE8', background:'#fff', color:'#6B7875', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                          취소
+                        </button>
+                        <button onClick={() => { setCaption(editCaptionDraft); setEditingCaption(false) }}
+                          style={{ flex:2, padding:'9px', borderRadius:10, border:'none', background:'#1D9E75', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                          ✓ 수정 완료
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </>
             )}
 
