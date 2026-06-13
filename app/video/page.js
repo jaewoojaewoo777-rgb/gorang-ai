@@ -37,6 +37,14 @@ const PLATFORMS = [
   { id: 'youtube',        icon: '📺', name: 'YouTube 일반',     ratio: 'landscape', ratioLabel: '가로 16:9' },
 ]
 
+const TONE_OPTIONS = [
+  { id: 'trendy',    emoji: '🔥', label: '트렌디',   desc: 'MZ 감성, 요즘 말투' },
+  { id: 'emotional', emoji: '🌙', label: '감성',     desc: '잔잔하고 서정적' },
+  { id: 'cute',      emoji: '💕', label: '귀여운',   desc: '발랄, 이모지 많이' },
+  { id: 'luxury',    emoji: '✨', label: '고급',     desc: '세련되고 품격있게' },
+  { id: 'info',      emoji: '📋', label: '깔끔정보',  desc: '과장없이 핵심만' },
+]
+
 const PROMPT_EXAMPLES = [
   {
     title: '🌅 오션뷰 감성 강조',
@@ -104,6 +112,7 @@ export default function VideoPage() {
   const [captionLoading, setCaptionLoading] = useState(false)
 
   const [subLang, setSubLang] = useState('en')
+  const [captionTone, setCaptionTone] = useState('trendy')  // 캡션 말투
   const [selectedBGM, setSelectedBGM] = useState('auto')
   const [titleText, setTitleText] = useState('')
   const [selectedPlatforms, setSelectedPlatforms] = useState(['youtube_shorts'])
@@ -155,7 +164,7 @@ useEffect(() => {
     setCaptionLoading(true); setStep(2)
     try {
       const s = await (await fetch('/api/shop')).json()
-      const body = { shopName: s.shop_name, shopLocation: s.shop_location, shopType: s.shop_type, subLang }
+      const body = { shopName: s.shop_name, shopLocation: s.shop_location, shopType: s.shop_type, subLang, tone: captionTone }
       if (prompt) body.customPrompt = prompt
 
       // 사진이 있으면 최대 3장 → 작게 리사이즈 후 base64 전송 (Claude Vision이 실제 사진 보고 캡션 생성)
@@ -739,6 +748,29 @@ ${manualSub}`.trim()
                     {l.flag} {l.name}
                   </button>
                 ))}
+              </div>
+            </div>
+
+            <div style={{ marginBottom:14 }}>
+              <div style={{ fontSize:11, color:'#6B7875', fontWeight:500, marginBottom:8 }}>💬 캡션 말투 <span style={{ color:'#B0BAB6' }}>(AI가 이 느낌으로 써요)</span></div>
+              <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+                {TONE_OPTIONS.map(t => (
+                  <button key={t.id} onClick={() => setCaptionTone(t.id)}
+                    title={t.desc}
+                    style={{
+                      padding:'7px 12px', borderRadius:20,
+                      border:`1.5px solid ${captionTone===t.id?'#1D9E75':'#E6EAE8'}`,
+                      background: captionTone===t.id?'#E1F5EE':'#fff',
+                      color: captionTone===t.id?'#0F6E56':'#6B7875',
+                      fontSize:12, fontWeight:600, cursor:'pointer',
+                      fontFamily:'Noto Sans KR, sans-serif',
+                    }}>
+                    {t.emoji} {t.label}
+                  </button>
+                ))}
+              </div>
+              <div style={{ fontSize:11, color:'#B0BAB6', marginTop:6 }}>
+                {TONE_OPTIONS.find(t => t.id === captionTone)?.desc}
               </div>
             </div>
 
