@@ -102,6 +102,8 @@ export default function VideoPage() {
   const [previews, setPreviews] = useState([])
   const [videoFile, setVideoFile] = useState(null)
   const [videoPreview, setVideoPreview] = useState(null)
+  // 사진+영상 혼합 모드: 순서 유지되는 통합 리스트 [{type:'photo'|'video', file, preview}]
+  const [mixItems, setMixItems] = useState([])
 
   const [captionMode, setCaptionMode] = useState(null)
   const [customPrompt, setCustomPrompt] = useState('')
@@ -140,13 +142,16 @@ export default function VideoPage() {
 }, [])
   const photoRef = useRef()
   const videoRef = useRef()
+  const mixPhotoRef = useRef()
+  const mixVideoRef = useRef()
 useEffect(() => {
   fetch('/api/streak')
     .then(r => r.json())
     .then(d => { if (d.ok) setStreakInfo(d) })
     .catch(() => {})
 }, [])
-  const charLimit = Math.max(1, files.length) * CHARS_PER_PHOTO
+  const mixPhotoCount = mixItems.filter(it => it.type === 'photo').length
+  const charLimit = Math.max(1, (mode === 'mix' ? mixPhotoCount : files.length)) * CHARS_PER_PHOTO
 
   const handlePhotos = e => {
     const sel = Array.from(e.target.files)
@@ -157,6 +162,25 @@ useEffect(() => {
     const f = e.target.files[0]; if (!f) return
     setVideoFile(f); setVideoPreview(URL.createObjectURL(f))
   }
+  // 혼합 모드: 사진/영상 추가 (올린 순서대로 리스트에 쌓임)
+  const handleMixPhotos = e => {
+    const sel = Array.from(e.target.files)
+    setMixItems(p => [...p, ...sel.map(f => ({ type:'photo', file:f, preview:URL.createObjectURL(f) }))])
+    e.target.value = ''
+  }
+  const handleMixVideo = e => {
+    const sel = Array.from(e.target.files)
+    setMixItems(p => [...p, ...sel.map(f => ({ type:'video', file:f, preview:URL.createObjectURL(f) }))])
+    e.target.value = ''
+  }
+  const removeMixItem = (idx) => setMixItems(p => p.filter((_, j) => j !== idx))
+  const moveMixItem = (idx, dir) => setMixItems(p => {
+    const arr = [...p]
+    const ni = idx + dir
+    if (ni < 0 || ni >= arr.length) return p
+    ;[arr[idx], arr[ni]] = [arr[ni], arr[idx]]
+    return arr
+  })
   const togglePlatform = id => setSelectedPlatforms(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id])
 
   const runAICaption = async (prompt) => {
@@ -168,7 +192,10 @@ useEffect(() => {
       if (prompt) body.customPrompt = prompt
 
       // 사진이 있으면 최대 3장 → 작게 리사이즈 후 base64 전송 (Claude Vision이 실제 사진 보고 캡션 생성)
-      if (files.length > 0) {
+      const captionPhotos = mode === 'mix'
+        ? mixItems.filter(it => it.type === 'photo').map(it => it.file)
+        : files
+      if (captionPhotos.length > 0) {
         // canvas로 긴 변 768px, JPEG 품질 0.7로 압축 → body 크기 초과(413) 방지
         const resizeToBase64 = (file) => new Promise((resolve, reject) => {
           const img = new Image()
@@ -190,7 +217,7 @@ useEffect(() => {
           img.src = url
         })
         try {
-          const imgList = await Promise.all(files.slice(0, 3).map(resizeToBase64))
+          const imgList = await Promise.all(captionPhotos.slice(0, 3).map(resizeToBase64))
           body.imageBase64List = imgList
         } catch (e) {
           console.error('이미지 압축 실패, 텍스트만으로 생성:', e)
@@ -270,7 +297,8 @@ useEffect(() => {
   }
 
   const handleGenerate = async () => {
-    if (!files.length) return
+    const isMix = mode === 'mix'
+    if (isMix ? !mixItems.length : !files.length) return
     setGenerating(true); setGenProgress(0); setGenError('')
     try {
       // 업종 정보 가져오기 (영상 서버 폰트 테마 선택용)
@@ -301,11 +329,15 @@ useEffect(() => {
       if (selectedBGM === 'none') {
         bgmUrl = null
       } else if (selectedBGM === 'auto') {
-        setGenMsg('🎵 사진 분위기 분석 중...')
+        setGenMsg('🎵 분위기 분석 중...')
         try {
+          // mix면 첫 사진 preview, 아니면 기존 previews
+          const firstPhoto = isMix
+            ? (mixItems.find(it => it.type === 'photo')?.preview ? [mixItems.find(it => it.type === 'photo').preview] : [])
+            : previews.slice(0, 1)
           const res = await fetch('/api/analyze-bgm', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ imageUrls: previews.slice(0, 1) })
+            body: JSON.stringify({ imageUrls: firstPhoto })
           })
           const data = await res.json()
           bgmUrl = data.bgmUrl
@@ -321,24 +353,48 @@ useEffect(() => {
         bgmUrl = `https://hjvgekdeqqgxawefrzlk.supabase.co/storage/v1/object/public/BGM/${picked}`
       }
 
-      setGenMsg('🖼️ 이미지 업로드 중...')
+      setGenMsg(isMix ? '📤 사진·영상 업로드 중...' : '🖼️ 이미지 업로드 중...')
       setGenProgress(5)
       const sb = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
       )
-      const imageDataUrls = await Promise.all(
-        files.map(async (file, i) => {
-          const ts = Date.now()
-          const filePath = `tmp/${ts}_${i}.jpg`
-          const { error } = await sb.storage.from('videos').upload(filePath, file, {
-            contentType: 'image/jpeg', upsert: true
+
+      let imageDataUrls = []
+      let mediaItems = null
+
+      if (isMix) {
+        // 혼합 모드: 사진+영상을 순서대로 업로드 → mediaItems 배열
+        const ts = Date.now()
+        mediaItems = await Promise.all(
+          mixItems.map(async (it, i) => {
+            const ext = it.type === 'video' ? 'mp4' : 'jpg'
+            const ct  = it.type === 'video' ? 'video/mp4' : 'image/jpeg'
+            const filePath = `tmp/${ts}_${i}.${ext}`
+            const { error } = await sb.storage.from('videos').upload(filePath, it.file, {
+              contentType: ct, upsert: true
+            })
+            if (error) throw new Error('업로드 실패: ' + error.message)
+            const { data } = sb.storage.from('videos').getPublicUrl(filePath)
+            return { type: it.type, url: data.publicUrl }
           })
-          if (error) throw new Error('이미지 업로드 실패: ' + error.message)
-          const { data } = sb.storage.from('videos').getPublicUrl(filePath)
-          return data.publicUrl
-        })
-      )
+        )
+        // 자막용 사진 URL 목록 (캡션 분배는 사진 개수 기준)
+        imageDataUrls = mediaItems.filter(m => m.type === 'photo').map(m => m.url)
+      } else {
+        imageDataUrls = await Promise.all(
+          files.map(async (file, i) => {
+            const ts = Date.now()
+            const filePath = `tmp/${ts}_${i}.jpg`
+            const { error } = await sb.storage.from('videos').upload(filePath, file, {
+              contentType: 'image/jpeg', upsert: true
+            })
+            if (error) throw new Error('이미지 업로드 실패: ' + error.message)
+            const { data } = sb.storage.from('videos').getPublicUrl(filePath)
+            return data.publicUrl
+          })
+        )
+      }
       setGenProgress(15)
 
       const ratios = selectedPlatforms.map(pid => PLATFORMS.find(p => p.id === pid)?.ratio)
@@ -353,7 +409,7 @@ useEffect(() => {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             imageDataUrls, koText, subText, titleLine1, titleLine2,
-            bgmUrl, isPortrait: true, subLang, shopType,
+            bgmUrl, isPortrait: true, subLang, shopType, mediaItems,
           })
         })
         const data = await res.json()
@@ -369,7 +425,7 @@ useEffect(() => {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             imageDataUrls, koText, subText, titleLine1, titleLine2,
-            bgmUrl, isPortrait: false, subLang, shopType,
+            bgmUrl, isPortrait: false, subLang, shopType, mediaItems,
           })
         })
         const data = await res.json()
@@ -538,7 +594,7 @@ ${manualSub}`.trim()
   }
 
   const reset = () => {
-    setStep(1); setMode(null); setFiles([]); setPreviews([])
+    setStep(1); setMode(null); setFiles([]); setPreviews([]); setMixItems([])
     setCaption(''); setVideos({ portrait: null, landscape: null })
     setVideoFile(null); setVideoPreview(null); setUploadResults([])
     setGenError(''); setGenProgress(0); setCaptionMode(null)
@@ -654,6 +710,7 @@ ${manualSub}`.trim()
           <>
             {[
               { id:'photos',   emoji:'📸', title:'사진으로 영상 만들기', sub:'사진 여러 장 → BGM + 자막 + 영상 자동 제작' },
+              { id:'mix',      emoji:'🎞️', title:'사진 + 영상 합치기',   sub:'사진과 영상클립을 하나로 합쳐 릴스 제작' },
               { id:'existing', emoji:'🎬', title:'내 영상 올리기',        sub:'직접 만든 영상을 업로드' },
             ].map(m => (
               <div key={m.id} onClick={() => setMode(m.id)}
@@ -706,6 +763,52 @@ ${manualSub}`.trim()
                     ? <video src={`${videoPreview}#t=0.1`} preload="metadata" playsInline style={{ width:'100%', borderRadius:8, maxHeight:160, objectFit:'cover' }} controls />
                     : <><div style={{ fontSize:26, marginBottom:4 }}>🎬</div><div style={{ fontSize:13, color:'#6B7875', fontWeight:600 }}>영상 파일 선택</div><div style={{ fontSize:11, color:'#B0BAB6', marginTop:2 }}>MP4, MOV</div></>}
                 </div>
+              </>
+            )}
+
+            {mode === 'mix' && (
+              <>
+                <input ref={mixPhotoRef} type="file" accept="image/*" multiple style={{ display:'none' }} onChange={handleMixPhotos} />
+                <input ref={mixVideoRef} type="file" accept="video/*" multiple style={{ display:'none' }} onChange={handleMixVideo} />
+                <div style={{ display:'flex', gap:8, marginBottom:12 }}>
+                  <div onClick={() => mixPhotoRef.current.click()}
+                    style={{ flex:1, border:'2px dashed #B0BAB6', borderRadius:14, padding:'16px', textAlign:'center', cursor:'pointer', background:'#F4F6F5' }}>
+                    <div style={{ fontSize:24, marginBottom:4 }}>🖼️</div>
+                    <div style={{ fontSize:12, color:'#6B7875', fontWeight:600 }}>사진 추가</div>
+                  </div>
+                  <div onClick={() => mixVideoRef.current.click()}
+                    style={{ flex:1, border:'2px dashed #B0BAB6', borderRadius:14, padding:'16px', textAlign:'center', cursor:'pointer', background:'#F4F6F5' }}>
+                    <div style={{ fontSize:24, marginBottom:4 }}>🎬</div>
+                    <div style={{ fontSize:12, color:'#6B7875', fontWeight:600 }}>영상 추가</div>
+                  </div>
+                </div>
+
+                {mixItems.length > 0 && (
+                  <div style={{ marginBottom:12 }}>
+                    <div style={{ fontSize:11, color:'#6B7875', fontWeight:500, marginBottom:8 }}>
+                      📋 순서 (위→아래 순으로 영상에 들어감) · 영상 원음은 제거되고 BGM이 깔려요
+                    </div>
+                    {mixItems.map((it, i) => (
+                      <div key={i} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', marginBottom:6, borderRadius:10, border:'1.5px solid #E6EAE8', background:'#fff' }}>
+                        <div style={{ fontSize:12, fontWeight:700, color:'#B0BAB6', width:18, textAlign:'center' }}>{i+1}</div>
+                        <div style={{ width:46, height:46, borderRadius:8, overflow:'hidden', flexShrink:0, background:'#000' }}>
+                          {it.type === 'photo'
+                            ? <img src={it.preview} style={{ width:'100%', height:'100%', objectFit:'cover' }} alt="" />
+                            : <video src={`${it.preview}#t=0.1`} preload="metadata" playsInline muted style={{ width:'100%', height:'100%', objectFit:'cover' }} />}
+                        </div>
+                        <div style={{ flex:1, fontSize:12, color:'#1A2421', fontWeight:600 }}>
+                          {it.type === 'photo' ? '📷 사진' : '🎬 영상'}
+                        </div>
+                        <button onClick={() => moveMixItem(i, -1)} disabled={i===0}
+                          style={{ width:26, height:26, borderRadius:6, border:'1px solid #E6EAE8', background:'#fff', cursor: i===0?'not-allowed':'pointer', opacity:i===0?0.3:1, fontSize:12 }}>▲</button>
+                        <button onClick={() => moveMixItem(i, 1)} disabled={i===mixItems.length-1}
+                          style={{ width:26, height:26, borderRadius:6, border:'1px solid #E6EAE8', background:'#fff', cursor: i===mixItems.length-1?'not-allowed':'pointer', opacity:i===mixItems.length-1?0.3:1, fontSize:12 }}>▼</button>
+                        <button onClick={() => removeMixItem(i)}
+                          style={{ width:26, height:26, borderRadius:6, border:'none', background:'rgba(0,0,0,.06)', color:'#888', cursor:'pointer', fontSize:12 }}>✕</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </>
             )}
 
@@ -785,7 +888,7 @@ ${manualSub}`.trim()
                     if (c.id === 'ai') { runAICaption(null) }
                     else { setCaptionMode(c.id) }
                   }}
-                  style={{ display:'flex', alignItems:'center', gap:12, padding:'14px 14px', marginBottom:8, borderRadius:12, border:'1.5px solid #E6EAE8', background:'#fff', cursor: (mode==='photos'?!files.length:!videoFile) ? 'not-allowed' : 'pointer', opacity: (mode==='photos'?!files.length:!videoFile) ? 0.5 : 1, pointerEvents: (mode==='photos'?!files.length:!videoFile) ? 'none' : 'auto' }}>
+                  style={{ display:'flex', alignItems:'center', gap:12, padding:'14px 14px', marginBottom:8, borderRadius:12, border:'1.5px solid #E6EAE8', background:'#fff', cursor: ((mode==='photos')?!files.length:(mode==='mix')?!mixItems.length:!videoFile) ? 'not-allowed' : 'pointer', opacity: ((mode==='photos')?!files.length:(mode==='mix')?!mixItems.length:!videoFile) ? 0.5 : 1, pointerEvents: ((mode==='photos')?!files.length:(mode==='mix')?!mixItems.length:!videoFile) ? 'none' : 'auto' }}>
                   <div style={{ fontSize:24 }}>{c.emoji}</div>
                   <div style={{ flex:1 }}>
                     <div style={{ fontSize:13.5, fontWeight:700, color:'#1A2421' }}>{c.title}</div>
@@ -794,9 +897,9 @@ ${manualSub}`.trim()
                   <span style={{ color:'#B0BAB6', fontSize:18 }}>›</span>
                 </div>
               ))}
-              {(mode==='photos'?!files.length:!videoFile) && (
+              {((mode==='photos')?!files.length:(mode==='mix')?!mixItems.length:!videoFile) && (
                 <div style={{ fontSize:11, color:'#EF9F27', textAlign:'center', marginTop:4 }}>
-                  ↑ 먼저 {mode==='photos' ? '사진을' : '영상을'} 추가해주세요
+                  ↑ 먼저 {mode==='photos' ? '사진을' : mode==='mix' ? '사진이나 영상을' : '영상을'} 추가해주세요
                 </div>
               )}
             </div>
@@ -981,8 +1084,8 @@ ${manualSub}`.trim()
             )}
 
             {!generating && !captionLoading && (
-              mode === 'photos'
-                ? <PrimaryBtn onClick={handleGenerate} disabled={!files.length}>🎬 영상 만들기 시작</PrimaryBtn>
+              (mode === 'photos' || mode === 'mix')
+                ? <PrimaryBtn onClick={handleGenerate} disabled={mode==='mix' ? !mixItems.length : !files.length}>🎬 영상 만들기 시작</PrimaryBtn>
                 : <PrimaryBtn onClick={() => setStep(3)}>다음 → 캡션 설정</PrimaryBtn>
             )}
             <GhostBtn onClick={() => { setStep(1); if(!manualMode) setCaptionMode(null) }} style={{ marginTop:8 }}>← 돌아가기</GhostBtn>
