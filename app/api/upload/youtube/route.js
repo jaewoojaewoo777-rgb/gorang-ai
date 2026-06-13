@@ -15,12 +15,13 @@ export async function POST(request) {
 
   try {
     const formData = await request.formData()
-    const file = formData.get('video')
+    const file = formData.get('video')           // 직접 올린 영상 (기존 방식)
+    const videoUrl = formData.get('videoUrl')    // Supabase URL (새 방식 — 모바일 부담 감소)
     const caption = formData.get('caption') || ''
     const title = formData.get('title') || '고랑AI 업로드'
     const isShorts = formData.get('isShorts') === 'true'
 
-    if (!file) return NextResponse.json({ error: '영상 파일 필요' }, { status: 400 })
+    if (!file && !videoUrl) return NextResponse.json({ error: '영상 파일 또는 URL 필요' }, { status: 400 })
 
     console.log('[YouTube] userId:', session.userId)
 
@@ -48,8 +49,22 @@ export async function POST(request) {
     }
 
     // 파일 버퍼 변환
-    const arrayBuffer = await file.arrayBuffer()
-    const videoBuffer = Buffer.from(arrayBuffer)
+    let videoBuffer, mimeType
+    if (videoUrl) {
+      // 서버가 Supabase URL에서 직접 다운로드 → 모바일은 텍스트만 보내면 됨
+      console.log('[YouTube] URL에서 영상 다운로드:', videoUrl)
+      const videoRes = await fetch(videoUrl)
+      if (!videoRes.ok) {
+        return NextResponse.json({ error: '영상 다운로드 실패', detail: `status ${videoRes.status}` }, { status: 500 })
+      }
+      const arrayBuffer = await videoRes.arrayBuffer()
+      videoBuffer = Buffer.from(arrayBuffer)
+      mimeType = videoRes.headers.get('content-type') || 'video/mp4'
+    } else {
+      const arrayBuffer = await file.arrayBuffer()
+      videoBuffer = Buffer.from(arrayBuffer)
+      mimeType = file.type || 'video/mp4'
+    }
 
     // Shorts 제목에 #Shorts 추가
     const finalTitle = isShorts
@@ -63,7 +78,7 @@ export async function POST(request) {
       title: finalTitle || `${user.shop_name} - 고랑AI`,
       description: caption,
       videoBuffer,
-      mimeType: file.type || 'video/mp4',
+      mimeType,
       isShorts,
     })
 
