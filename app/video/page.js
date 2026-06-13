@@ -114,6 +114,8 @@ export default function VideoPage() {
   const [videos, setVideos] = useState({ portrait: null, landscape: null })
   const [uploading, setUploading] = useState(false)
   const [uploadResults, setUploadResults] = useState([])
+  const [savedCaptionIds, setSavedCaptionIds] = useState({})  // { platform: captionId }
+  const [starredMap, setStarredMap] = useState({})            // { platform: true/false }
 
   // 플랫폼별 캡션 state
   const [platformCaptions, setPlatformCaptions] = useState({})
@@ -381,6 +383,55 @@ useEffect(() => {
       } catch { results.push({ platform: pid, status: '❌ 네트워크 오류' }) }
     }
     setUploadResults(results)
+
+    // ── 캡션 자동 저장 ──────────────────────────────────────
+    // 업로드 완료된 플랫폼에 대해서만 저장
+    const successPlatforms = results.filter(r => r.status.includes('✅')).map(r => r.platform)
+    if (successPlatforms.length > 0) {
+      // source 판별
+      let source = 'ai_auto'
+      if (manualMode) source = 'user_written'
+      else if (captionMode === 'prompt') source = 'prompt'
+      else if (captionMode === 'auto') source = 'ai_auto'
+
+      // 캡션이 AI꺼에서 수정됐는지 — manualMode가 아닌데 caption이 있고 platformCaptions도 있으면 사용자가 수정했을 수 있음
+      // 단순하게: manualMode가 아닌데 platformCaptions에 직접 입력한 흔적이 있으면 was_modified=true
+      const was_modified = !manualMode && captionMode !== null && caption !== ''
+        ? false  // 일단 AI 그대로로 처리, 추후 onChange 감지로 개선
+        : false
+
+      const captionText = manualMode
+        ? `${manualKo}
+${manualSub}`.trim()
+        : caption
+
+      const newIds = {}
+      for (const pid of successPlatforms) {
+        const pc = platformCaptions[pid] || {}
+        const finalCaption = pc.caption || captionText || ''
+        if (!finalCaption) continue
+        try {
+          const res = await fetch('/api/captions/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              caption: finalCaption,
+              source,
+              platform: pid,
+              photo_tags: [],   // 추후 Claude Vision 태그 연결
+              was_modified,
+            }),
+          })
+          const d = await res.json()
+          if (d.captionId) newIds[pid] = d.captionId
+        } catch (e) {
+          console.error('캡션 저장 실패:', e)
+        }
+      }
+      setSavedCaptionIds(newIds)
+    }
+    // ─────────────────────────────────────────────────────────
+
     setUploading(false)
     setStep(4)
   }
@@ -392,6 +443,26 @@ useEffect(() => {
     setGenError(''); setGenProgress(0); setCaptionMode(null)
     setCustomPrompt(''); setManualKo(''); setManualSub(''); setManualMode(false)
     setPlatformCaptions({}); setCaptionGenerating({})
+    setSavedCaptionIds({}); setStarredMap({})
+  }
+
+  // 별표 토글
+  const handleStar = async (platform) => {
+    const captionId = savedCaptionIds[platform]
+    if (!captionId) return
+    const newStarred = !starredMap[platform]
+    setStarredMap(prev => ({ ...prev, [platform]: newStarred }))
+    try {
+      await fetch('/api/captions/save', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ captionId, starred: newStarred }),
+      })
+    } catch (e) {
+      console.error('별표 저장 실패:', e)
+      // 실패 시 롤백
+      setStarredMap(prev => ({ ...prev, [platform]: !newStarred }))
+    }
   }
 
   const goBackToCaptionSelect = () => {
@@ -425,10 +496,45 @@ useEffect(() => {
 )}
       {uploadResults.map((r, i) => {
         const p = PLATFORMS.find(x => x.id === r.platform)
+        const isSuccess = r.status.includes('✅')
+        const hasCaptionId = !!savedCaptionIds[r.platform]
+        const isStarred = !!starredMap[r.platform]
         return (
           <div key={i} style={{ width:'100%', background:'#F4F6F5', borderRadius:12, padding:'12px 14px', marginBottom:8 }}>
-            <div style={{ fontSize:13, fontWeight:600 }}>{p?.icon} {p?.name}</div>
-            <div style={{ fontSize:12, color: r.status.includes('✅') ? '#1D9E75' : '#EF9F27', marginTop:3 }}>{r.status}</div>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <div style={{ fontSize:13, fontWeight:600 }}>{p?.icon} {p?.name}</div>
+              {/* 별표 버튼 — 업로드 성공 + 캡션 저장된 경우만 노출 */}
+              {isSuccess && hasCaptionId && (
+                <button
+                  onClick={() => handleStar(r.platform)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: 20,
+                    lineHeight: 1,
+                    padding: '2px 4px',
+                    color: isStarred ? '#F5A623' : '#D0D5D2',
+                    transition: 'color 0.15s',
+                  }}
+                  title={isStarred ? '별표 취소' : '이 캡션 마음에 들었어요'}
+                >
+                  {isStarred ? '⭐' : '☆'}
+                </button>
+              )}
+            </div>
+            <div style={{ fontSize:12, color: isSuccess ? '#1D9E75' : '#EF9F27', marginTop:3 }}>{r.status}</div>
+            {/* 별표 안내 문구 */}
+            {isSuccess && hasCaptionId && !isStarred && (
+              <div style={{ fontSize:10, color:'#B0BAB6', marginTop:4 }}>
+                ☆ 이 캡션이 마음에 들면 별표를 눌러주세요
+              </div>
+            )}
+            {isSuccess && hasCaptionId && isStarred && (
+              <div style={{ fontSize:10, color:'#1D9E75', marginTop:4 }}>
+                ⭐ 별표 캡션으로 저장됐어요
+              </div>
+            )}
             {r.url && <a href={r.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:11, color:'#1D9E75', display:'block', marginTop:3 }}>▶️ 유튜브에서 보기</a>}
           </div>
         )
