@@ -83,8 +83,9 @@ export async function POST(request) {
   try {
     const formData = await request.formData()
     const file = formData.get('video')
+    const videoUrl = formData.get('videoUrl')   // Supabase URL (모바일 부담 ↓)
     const caption = formData.get('caption') || '고랑AI'
-    if (!file) return NextResponse.json({ error: '영상 파일 필요' }, { status: 400 })
+    if (!file && !videoUrl) return NextResponse.json({ error: '영상 파일 또는 URL 필요' }, { status: 400 })
 
     const { data: user } = await supabaseAdmin
       .from('users')
@@ -119,8 +120,19 @@ export async function POST(request) {
     await queryCreatorInfo(accessToken)
 
     const reqStart = Date.now()
-    const arrayBuffer = await file.arrayBuffer()
-    let videoBuffer = Buffer.from(arrayBuffer)
+    let videoBuffer
+    if (videoUrl) {
+      // 서버가 Supabase URL에서 직접 다운로드
+      const videoRes = await fetch(videoUrl)
+      if (!videoRes.ok) {
+        return NextResponse.json({ error: '영상 다운로드 실패', detail: `status ${videoRes.status}` }, { status: 500 })
+      }
+      const ab = await videoRes.arrayBuffer()
+      videoBuffer = Buffer.from(ab)
+    } else {
+      const arrayBuffer = await file.arrayBuffer()
+      videoBuffer = Buffer.from(arrayBuffer)
+    }
 
     const conv = await convertToMp4(videoBuffer)
     videoBuffer = conv.buffer
