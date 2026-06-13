@@ -184,6 +184,6 @@ export async function POST(request) {
     })
   } catch (err) {
     console.error('틱톡 업로드 오류:', err)
-    return NextResponse.json({ error: '업로드 실패', detail: err.message }, { status: 500 })\
+    return NextResponse.json({ error: '업로드 실패', detail: err.message }, { status: 500 })
   }
 }
