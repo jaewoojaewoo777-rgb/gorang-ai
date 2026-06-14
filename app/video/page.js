@@ -453,7 +453,7 @@ useEffect(() => {
       const pc = platformCaptions[pid] || {}
 
       if (pid === 'instagram') {
-        results.push({ platform: pid, status: '⏳ 심사 후 업로드 예정' }); continue
+        results.push({ platform: pid, status: '⏳ 인스타그램 자동 업로드 준비 중' }); continue
       }
 
       // Supabase에 영상 URL이 있으면 그 URL만 서버로 보냄 (모바일 부담 ↓, 타임아웃 방지)
@@ -519,13 +519,15 @@ useEffect(() => {
           continue
         }
 
-        const url = pid === 'tiktok'
-          ? (data.ok ? '틱톡 앱에서 비공개로 확인' : undefined)
-          : data.youtubeUrl
+        // 틱톡은 비공개(검수) 업로드라 공개 URL이 없음 → 링크 대신 안내 문구만
+        // 실제 시청 URL이 있는 건 유튜브뿐
+        const url = pid === 'tiktok' ? undefined : data.youtubeUrl
+        const note = (pid === 'tiktok' && data.ok) ? '🎵 틱톡 앱에서 확인하세요' : undefined
         results.push({
           platform: pid,
           status: data.ok ? '✅ 업로드 완료' : `❌ 실패 (${data.detail || data.error || ''})`,
           url,
+          note,
         })
       } catch (e) {
         // AbortError = 타임아웃. 이 경우 실제로는 업로드 완료됐을 가능성 높음
@@ -692,7 +694,14 @@ ${manualSub}`.trim()
                 ⭐ 별표 캡션으로 저장됐어요
               </div>
             )}
-            {r.url && <a href={r.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:11, color:'#1D9E75', display:'block', marginTop:3 }}>▶️ 유튜브에서 보기</a>}
+            {r.url && (
+              <a href={r.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:11, color:'#1D9E75', display:'block', marginTop:3 }}>
+                {r.platform === 'tiktok' ? '🎵 틱톡에서 보기'
+                  : r.platform === 'instagram' ? '📸 인스타그램에서 보기'
+                  : '▶️ 유튜브에서 보기'}
+              </a>
+            )}
+            {r.note && <div style={{ fontSize:11, color:'#1D9E75', marginTop:3 }}>{r.note}</div>}
           </div>
         )
       })}
