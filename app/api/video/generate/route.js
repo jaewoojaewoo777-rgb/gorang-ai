@@ -126,12 +126,11 @@ export async function POST(request) {
     const { jobId } = await renderRes.json()
     console.log('[video/generate] jobId:', jobId)
 
-    // 2. 완료될 때까지 폴링
-    const videoUrl = await waitForJob(railwayUrl, jobId)
-
+    // 렌더는 백그라운드로 진행 → jobId 즉시 반환.
+    // 완료 폴링은 브라우저가 /api/video/status 로 직접 함 (Vercel 60초 제한 회피)
     return NextResponse.json({
       ok: true,
-      videoUrl,
+      jobId,
       duration: n * 3,
     })
 
