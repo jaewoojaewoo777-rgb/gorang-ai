@@ -519,10 +519,12 @@ useEffect(() => {
           continue
         }
 
-        // 틱톡은 비공개(검수) 업로드라 공개 URL이 없음 → 링크 대신 안내 문구만
-        // 실제 시청 URL이 있는 건 유튜브뿐
-        const url = pid === 'tiktok' ? undefined : data.youtubeUrl
-        const note = (pid === 'tiktok' && data.ok) ? '🎵 틱톡 앱에서 확인하세요' : undefined
+        // 틱톡 업로드는 비공개(SELF_ONLY)라 '영상별' 공개 URL은 없지만,
+        // '확인하기'를 누르면 틱톡 앱/웹이 열려 내 프로필에서 바로 확인 가능
+        const url = pid === 'tiktok'
+          ? (data.ok ? 'https://www.tiktok.com/' : undefined)
+          : data.youtubeUrl
+        const note = (pid === 'tiktok' && data.ok) ? '내 프로필 > 영상 탭에서 확인하세요' : undefined
         results.push({
           platform: pid,
           status: data.ok ? '✅ 업로드 완료' : `❌ 실패 (${data.detail || data.error || ''})`,
@@ -696,7 +698,7 @@ ${manualSub}`.trim()
             )}
             {r.url && (
               <a href={r.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:11, color:'#1D9E75', display:'block', marginTop:3 }}>
-                {r.platform === 'tiktok' ? '🎵 틱톡에서 보기'
+                {r.platform === 'tiktok' ? '🎵 틱톡에서 확인하기 ↗'
                   : r.platform === 'instagram' ? '📸 인스타그램에서 보기'
                   : '▶️ 유튜브에서 보기'}
               </a>
