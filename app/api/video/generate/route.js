@@ -75,6 +75,7 @@ export async function POST(request) {
       subLang = 'none',
       captions,
       shopType = null,
+      tone = null,   // 캡션 말투(trendy/emotional/cute/luxury/info) → 폰트 자동 선택용
       mediaItems,   // [{ type:'photo'|'video', url }] — 사진+영상 혼합
     } = await request.json()
 
@@ -113,6 +114,7 @@ export async function POST(request) {
         titleLine1: titleLine1 || '',
         titleLine2: titleLine2 || '',
         shopType: shopType || '',
+        tone: tone || '',
       }),
     })
 
