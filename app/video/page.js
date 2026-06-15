@@ -409,7 +409,7 @@ useEffect(() => {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             imageDataUrls, koText, subText, titleLine1, titleLine2,
-            bgmUrl, isPortrait: true, subLang, shopType, mediaItems,
+            bgmUrl, isPortrait: true, subLang, shopType, mediaItems, tone: captionTone,
           })
         })
         const data = await res.json()
@@ -425,7 +425,7 @@ useEffect(() => {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             imageDataUrls, koText, subText, titleLine1, titleLine2,
-            bgmUrl, isPortrait: false, subLang, shopType, mediaItems,
+            bgmUrl, isPortrait: false, subLang, shopType, mediaItems, tone: captionTone,
           })
         })
         const data = await res.json()
