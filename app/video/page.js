@@ -402,35 +402,49 @@ useEffect(() => {
       const needLandscape = ratios.includes('landscape')
       const result = {}
 
-      if (needPortrait) {
-        setGenMsg('📱 세로 영상 제작 중... (10~30초 소요)')
-        setGenProgress(20)
-        const res = await fetch('/api/video/generate', {
+      // 렌더 시작 → 완료까지 브라우저가 폴링 (Vercel 60초 제한 회피 → 길어도 안 터짐)
+      const renderAndWait = async (reqBody, baseProgress, capProgress) => {
+        setGenProgress(baseProgress)
+        const startRes = await fetch('/api/video/generate', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            imageDataUrls, koText, subText, titleLine1, titleLine2,
-            bgmUrl, isPortrait: true, subLang, shopType, mediaItems, tone: captionTone,
-          })
+          body: JSON.stringify(reqBody),
         })
-        const data = await res.json()
-        if (!data.ok) throw new Error(data.error || '세로 영상 생성 실패')
-        result.portrait = { url: data.videoUrl, blob: null }
+        const startData = await startRes.json()
+        if (!startData.ok || !startData.jobId) throw new Error(startData.error || '영상 생성 시작 실패')
+        const jobId = startData.jobId
+
+        const deadline = Date.now() + 6 * 60 * 1000   // 최대 6분 대기
+        while (Date.now() < deadline) {
+          await new Promise(r => setTimeout(r, 3000))
+          setGenProgress(prev => (prev < capProgress ? prev + 1 : prev))
+          let sdata
+          try {
+            const sres = await fetch(`/api/video/status?jobId=${encodeURIComponent(jobId)}`)
+            sdata = await sres.json()
+          } catch { continue }   // 일시적 네트워크 오류는 무시하고 재시도
+          if (sdata.status === 'done' && sdata.videoUrl) return sdata.videoUrl
+          if (sdata.status === 'error') throw new Error(sdata.error || '렌더링 실패')
+        }
+        throw new Error('렌더링이 너무 오래 걸려요 (6분 초과)')
+      }
+
+      if (needPortrait) {
+        setGenMsg('📱 세로 영상 제작 중... (최대 1~2분)')
+        const url = await renderAndWait({
+          imageDataUrls, koText, subText, titleLine1, titleLine2,
+          bgmUrl, isPortrait: true, subLang, shopType, mediaItems, tone: captionTone,
+        }, 20, needLandscape ? 50 : 88)
+        result.portrait = { url, blob: null }
         setGenProgress(needLandscape ? 55 : 90)
       }
 
       if (needLandscape) {
-        setGenMsg('🖥️ 가로 영상 제작 중...')
-        setGenProgress(needPortrait ? 60 : 20)
-        const res = await fetch('/api/video/generate', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            imageDataUrls, koText, subText, titleLine1, titleLine2,
-            bgmUrl, isPortrait: false, subLang, shopType, mediaItems, tone: captionTone,
-          })
-        })
-        const data = await res.json()
-        if (!data.ok) throw new Error(data.error || '가로 영상 생성 실패')
-        result.landscape = { url: data.videoUrl, blob: null }
+        setGenMsg('🖥️ 가로 영상 제작 중... (최대 1~2분)')
+        const url = await renderAndWait({
+          imageDataUrls, koText, subText, titleLine1, titleLine2,
+          bgmUrl, isPortrait: false, subLang, shopType, mediaItems, tone: captionTone,
+        }, needPortrait ? 60 : 20, 88)
+        result.landscape = { url, blob: null }
         setGenProgress(90)
       }
 
