@@ -16,7 +16,10 @@ export async function POST(request) {
     .update({ shop_name: shopName, shop_type: shopType, shop_location: shopLocation, shop_intro: shopIntro })
     .eq('id', session.userId)
 
-  if (error) return NextResponse.json({ error: '저장 실패' }, { status: 500 })
+  if (error) {
+    console.error('shop save error:', error)
+    return NextResponse.json({ error: '저장 실패' }, { status: 500 })
+  }
   return NextResponse.json({ ok: true })
 }
 
@@ -31,9 +34,4 @@ export async function GET() {
     .single()
 
   return NextResponse.json(data || {})
-}
-
-if (error) {
-  console.error('shop save error:', error)
-  return NextResponse.json({ error: '저장 실패' }, { status: 500 })
 }
