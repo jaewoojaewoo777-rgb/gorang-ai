@@ -475,27 +475,56 @@ useEffect(() => {
         results.push({ platform: pid, status: '⏳ 인스타그램 자동 업로드 준비 중' }); continue
       }
 
-      // 샤오홍수: 클립보드 복사 후 앱으로 이동 (API 없음)
+      // 샤오홍수: 캡션 클립보드 복사 + 영상 네이티브 공유 (iOS 공유시트 → 샤오홍수 작성창에 영상 첨부)
       if (pid === 'xiaohongshu') {
         const pc = platformCaptions[pid] || {}
+        // 제목칸은 비워도 발행되므로 제목을 본문 첫 줄로 합쳐 한 덩어리로
         const xhsText = [
           pc.title || '',
           pc.caption || '',
-          (pc.hashtags || []).join(' '),
+          (pc.hashtags || []).map(t => (t.startsWith('#') ? t : '#' + t)).join(' '),
         ].filter(Boolean).join('\n\n')
+
+        // 1) 캡션 먼저 클립보드에 복사 (공유 후 본문칸에 붙여넣기용)
+        let copied = false
         try {
           await navigator.clipboard.writeText(xhsText)
+          copied = true
+        } catch { copied = false }
+
+        // 2) 영상 파일을 공유시트로 전달 시도 (영상 들고 샤오홍수 작성창 열림)
+        const shareUrl = videoData?.url || null
+        let shared = false
+        if (shareUrl && typeof navigator !== 'undefined' && navigator.canShare) {
+          try {
+            const resp = await fetch(shareUrl)
+            const vblob = await resp.blob()
+            const file = new File([vblob], 'gorang-xiaohongshu.mp4', { type: 'video/mp4' })
+            if (navigator.canShare({ files: [file] })) {
+              await navigator.share({ files: [file] })
+              shared = true
+            }
+          } catch (e) {
+            // 사용자가 공유시트 취소(AbortError)했거나 공유 실패 → 폴백 안내
+            shared = false
+          }
+        }
+
+        if (shared) {
           results.push({
             platform: pid,
-            status: '✅ 캡션 복사 완료',
-            url: 'https://www.xiaohongshu.com/publish/publish',
-            note: '앱을 열고 붙여넣기(长按→粘贴)하세요',
+            status: copied ? '✅ 영상 공유 + 캡션 복사 완료' : '✅ 영상 공유 완료 (캡션은 아래에서 복사)',
+            note: copied ? '샤오홍수 작성창에서 본문을 꾹 눌러 붙여넣기(粘贴)하세요' : null,
+            xhsCaption: copied ? null : xhsText,
           })
-        } catch {
+        } else {
+          // 공유 미지원/취소 → 폴백: 캡션 복사 + 발행페이지 링크
           results.push({
             platform: pid,
-            status: '⚠️ 클립보드 복사 실패 — 아래 캡션을 직접 복사하세요',
-            note: xhsText,
+            status: copied ? '✅ 캡션 복사 완료' : '⚠️ 아래 캡션을 직접 복사하세요',
+            url: 'https://creator.xiaohongshu.com/publish/publish',
+            note: copied ? '영상을 저장한 뒤 발행페이지에서 올리고 본문에 붙여넣기' : null,
+            xhsCaption: copied ? null : xhsText,
           })
         }
         continue
@@ -745,11 +774,35 @@ ${manualSub}`.trim()
               <a href={r.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:11, color:'#1D9E75', display:'block', marginTop:3 }}>
                 {r.platform === 'tiktok' ? '🎵 틱톡에서 확인하기 ↗'
                   : r.platform === 'instagram' ? '📸 인스타그램에서 보기'
-                  : r.platform === 'xiaohongshu' ? '📕 샤오홍수 앱 열기 ↗'
+                  : r.platform === 'xiaohongshu' ? '📕 샤오홍수 발행페이지 열기 ↗'
                   : '▶️ 유튜브에서 보기'}
               </a>
             )}
             {r.note && <div style={{ fontSize:11, color:'#1D9E75', marginTop:3 }}>{r.note}</div>}
+            {/* 샤오홍수 전용: 영상 저장 버튼 (공유가 안 됐거나 다시 저장하고 싶을 때) */}
+            {r.platform === 'xiaohongshu' && videos.portrait?.url && (
+              <a
+                href={videos.portrait.url}
+                download="gorang-xiaohongshu.mp4"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ display:'inline-block', marginTop:8, padding:'7px 12px', borderRadius:8, background:'#FF2442', color:'#fff', fontSize:12, fontWeight:700, textDecoration:'none' }}
+              >
+                ⬇️ 영상 저장하기
+              </a>
+            )}
+            {/* 캡션 복사 실패 시 직접 복사용 박스 */}
+            {r.xhsCaption && (
+              <div style={{ marginTop:8 }}>
+                <div style={{ fontSize:11, color:'#6B7875', marginBottom:4 }}>👇 캡션 (꾹 눌러 전체 복사)</div>
+                <textarea
+                  readOnly
+                  value={r.xhsCaption}
+                  onClick={e => e.target.select()}
+                  style={{ width:'100%', minHeight:90, padding:'8px 10px', borderRadius:8, border:'1.5px solid #FFB3BE', fontSize:12, color:'#1A2421', fontFamily:'Noto Sans KR, sans-serif', boxSizing:'border-box', background:'#FFF5F6', lineHeight:1.5, resize:'vertical' }}
+                />
+              </div>
+            )}
           </div>
         )
       })}
@@ -1281,8 +1334,8 @@ ${manualSub}`.trim()
 
                     {pid === 'xiaohongshu' && (
                       <>
-                        <div style={{ background:'#FFF0F0', borderRadius:8, padding:'8px 10px', marginBottom:10, fontSize:11, color:'#C0392B' }}>
-                          📕 샤오홍수는 API 없음 — 캡션을 복사 후 앱에서 붙여넣기로 업로드해요
+                        <div style={{ background:'#FFF0F0', borderRadius:8, padding:'8px 10px', marginBottom:10, fontSize:11, color:'#C0392B', lineHeight:1.5 }}>
+                          📕 업로드 버튼을 누르면 <b>캡션이 복사되고 영상 공유창</b>이 떠요 → 샤오홍수 선택 → 작성창 본문을 꾹 눌러 붙여넣기(粘贴)
                         </div>
                         <div style={{ fontSize:11, color:'#6B7875', fontWeight:600, marginBottom:4 }}>제목 (중국어)</div>
                         <input
