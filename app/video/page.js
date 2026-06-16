@@ -35,6 +35,7 @@ const PLATFORMS = [
   { id: 'instagram',      icon: '📸', name: 'Instagram 릴스',  ratio: 'portrait',  ratioLabel: '세로 9:16' },
   { id: 'tiktok',         icon: '🎵', name: 'TikTok',          ratio: 'portrait',  ratioLabel: '세로 9:16' },
   { id: 'youtube',        icon: '📺', name: 'YouTube 일반',     ratio: 'landscape', ratioLabel: '가로 16:9' },
+  { id: 'xiaohongshu',   icon: '📕', name: '샤오홍수 小红书',   ratio: 'portrait',  ratioLabel: '세로 9:16' },
 ]
 
 const TONE_OPTIONS = [
@@ -277,6 +278,10 @@ useEffect(() => {
 제목힌트: ${title}
 내용힌트: ${baseKo}
 {"caption":"한줄캡션(50자이내)","hashtags":["해시태그1","해시태그2","해시태그3"]}`,
+      xiaohongshu: `제주도 한국 카페/펜션/식당 소상공인의 샤오홍수(小红书) 게시글 캡션을 중국어 간체로 만들어줘. 중국 MZ 감성, 여행/맛집 탐방 느낌으로. JSON으로만 응답. 다른 텍스트 없이 JSON만.
+제목힌트: ${title}
+내용힌트: ${baseKo}
+{"title":"제목중국어(이모지포함30자이내)","caption":"본문중국어(이모지줄바꿈포함200자이내)","hashtags":["#济州岛","#韩国旅游","#카페"]}`,
     }
 
     try {
@@ -468,6 +473,32 @@ useEffect(() => {
 
       if (pid === 'instagram') {
         results.push({ platform: pid, status: '⏳ 인스타그램 자동 업로드 준비 중' }); continue
+      }
+
+      // 샤오홍수: 클립보드 복사 후 앱으로 이동 (API 없음)
+      if (pid === 'xiaohongshu') {
+        const pc = platformCaptions[pid] || {}
+        const xhsText = [
+          pc.title || '',
+          pc.caption || '',
+          (pc.hashtags || []).join(' '),
+        ].filter(Boolean).join('\n\n')
+        try {
+          await navigator.clipboard.writeText(xhsText)
+          results.push({
+            platform: pid,
+            status: '✅ 캡션 복사 완료',
+            url: 'https://www.xiaohongshu.com/publish/publish',
+            note: '앱을 열고 붙여넣기(长按→粘贴)하세요',
+          })
+        } catch {
+          results.push({
+            platform: pid,
+            status: '⚠️ 클립보드 복사 실패 — 아래 캡션을 직접 복사하세요',
+            note: xhsText,
+          })
+        }
+        continue
       }
 
       // Supabase에 영상 URL이 있으면 그 URL만 서버로 보냄 (모바일 부담 ↓, 타임아웃 방지)
@@ -714,6 +745,7 @@ ${manualSub}`.trim()
               <a href={r.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:11, color:'#1D9E75', display:'block', marginTop:3 }}>
                 {r.platform === 'tiktok' ? '🎵 틱톡에서 확인하기 ↗'
                   : r.platform === 'instagram' ? '📸 인스타그램에서 보기'
+                  : r.platform === 'xiaohongshu' ? '📕 샤오홍수 앱 열기 ↗'
                   : '▶️ 유튜브에서 보기'}
               </a>
             )}
@@ -1242,6 +1274,42 @@ ${manualSub}`.trim()
                           value={(pc.hashtags || []).join(' ')}
                           onChange={e => setPlatformCaptions(prev => ({ ...prev, [pid]: { ...prev[pid], hashtags: e.target.value.split(/\s+/).filter(Boolean) } }))}
                           placeholder="#jeju #제주여행 #카페투어 (공백 구분)"
+                          style={{ width:'100%', padding:'8px 10px', borderRadius:8, border:'1.5px solid #E6EAE8', fontSize:12, color:'#1A2421', fontFamily:'Noto Sans KR, sans-serif', boxSizing:'border-box', outline:'none' }}
+                        />
+                      </>
+                    )}
+
+                    {pid === 'xiaohongshu' && (
+                      <>
+                        <div style={{ background:'#FFF0F0', borderRadius:8, padding:'8px 10px', marginBottom:10, fontSize:11, color:'#C0392B' }}>
+                          📕 샤오홍수는 API 없음 — 캡션을 복사 후 앱에서 붙여넣기로 업로드해요
+                        </div>
+                        <div style={{ fontSize:11, color:'#6B7875', fontWeight:600, marginBottom:4 }}>제목 (중국어)</div>
+                        <input
+                          value={pc.title || ''}
+                          onChange={e => setPlatformCaptions(prev => ({ ...prev, [pid]: { ...prev[pid], title: e.target.value } }))}
+                          placeholder="예) 🌊 济州岛海景咖啡厅推荐！"
+                          style={{ width:'100%', padding:'8px 10px', borderRadius:8, border:'1.5px solid #E6EAE8', fontSize:12, color:'#1A2421', fontFamily:'Noto Sans KR, sans-serif', boxSizing:'border-box', outline:'none', marginBottom:8 }}
+                        />
+                        <div style={{ fontSize:11, color:'#6B7875', fontWeight:600, marginBottom:4 }}>본문 (중국어)</div>
+                        <textarea
+                          value={pc.caption || ''}
+                          onChange={e => setPlatformCaptions(prev => ({ ...prev, [pid]: { ...prev[pid], caption: e.target.value } }))}
+                          placeholder="이모지 + 중국어 감성 본문"
+                          style={{ width:'100%', minHeight:80, padding:'8px 10px', borderRadius:8, border:'1.5px solid #E6EAE8', fontSize:12, color:'#1A2421', fontFamily:'Noto Sans KR, sans-serif', boxSizing:'border-box', outline:'none', resize:'vertical', lineHeight:1.5, marginBottom:8 }}
+                        />
+                        <div style={{ fontSize:11, color:'#6B7875', fontWeight:600, marginBottom:6 }}>해시태그</div>
+                        {(pc.hashtags || []).length > 0 && (
+                          <div style={{ display:'flex', flexWrap:'wrap', gap:5, marginBottom:6 }}>
+                            {(pc.hashtags || []).map((tag, i) => (
+                              <span key={i} style={{ padding:'3px 8px', borderRadius:20, background:'#FFE0E0', color:'#C0392B', fontSize:11 }}>{tag.startsWith('#') ? tag : '#'+tag}</span>
+                            ))}
+                          </div>
+                        )}
+                        <input
+                          value={(pc.hashtags || []).join(' ')}
+                          onChange={e => setPlatformCaptions(prev => ({ ...prev, [pid]: { ...prev[pid], hashtags: e.target.value.split(/\s+/).filter(Boolean) } }))}
+                          placeholder="#济州岛 #韩国旅游 #咖啡厅 (공백 구분)"
                           style={{ width:'100%', padding:'8px 10px', borderRadius:8, border:'1.5px solid #E6EAE8', fontSize:12, color:'#1A2421', fontFamily:'Noto Sans KR, sans-serif', boxSizing:'border-box', outline:'none' }}
                         />
                       </>
