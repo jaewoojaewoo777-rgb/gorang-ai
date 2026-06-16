@@ -32,3 +32,8 @@ export async function GET() {
 
   return NextResponse.json(data || {})
 }
+
+if (error) {
+  console.error('shop save error:', error)
+  return NextResponse.json({ error: '저장 실패' }, { status: 500 })
+}
