@@ -22,9 +22,9 @@ export async function POST() {
       to: user.phone,
       shopName: user.shop_name || '테스트 가게',
       star: 1,
+      reviewerName: '테스트유저',
       summary: '음식이 너무 형편없고 직원도 불친절했습니다. 다시는 오지 않겠습니다.',
       reply1: '안녕하세요. 불편한 경험을 드려 진심으로 사과드립니다. 더 나은 서비스로 보답하겠습니다.',
-      reply2: '소중한 의견 감사합니다. 말씀하신 부분 개선을 위해 노력하겠습니다.',
     })
     return NextResponse.json({ ok: true, to: user.phone, result })
   } catch (err) {

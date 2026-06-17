@@ -192,9 +192,9 @@ export async function POST(req) {
                 to: user.phone,
                 shopName,
                 star: starNum,
+                reviewerName: review.reviewer?.displayName || '익명',
                 summary: analysis.korean_summary,
                 reply1: reply1 || '답변을 준비 중입니다.',
-                reply2: reply2,
               });
             } else if (analysis.type === '주의') {
               await sendReviewAlert({
