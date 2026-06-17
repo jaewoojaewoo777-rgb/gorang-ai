@@ -17,6 +17,8 @@ export default function ReviewPage() {
   const [replyLoading, setReplyLoading] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [mode, setMode] = useState('approve') // approve | auto
+  const [polling, setPolling] = useState(false)
+  const [pollResult, setPollResult] = useState(null)
 
   useEffect(() => {
     fetch('/api/reviews')
@@ -24,6 +26,27 @@ export default function ReviewPage() {
       .then(d => { setReviews(d.reviews || []); setLoading(false) })
       .catch(() => setLoading(false))
   }, [])
+
+  const handlePoll = async () => {
+    setPolling(true)
+    setPollResult(null)
+    try {
+      const res = await fetch('/api/reviews/poll', { method: 'POST' })
+      const data = await res.json()
+      if (data.success) {
+        setPollResult(data.newReviews > 0 ? `✅ 새 리뷰 ${data.newReviews}개 감지 → 카톡 발송` : '✅ 새 리뷰 없음')
+        if (data.newReviews > 0) {
+          const refreshed = await fetch('/api/reviews').then(r => r.json())
+          setReviews(refreshed.reviews || [])
+        }
+      } else {
+        setPollResult('❌ ' + (data.error || '오류'))
+      }
+    } catch (e) {
+      setPollResult('❌ 네트워크 오류')
+    }
+    setPolling(false)
+  }
 
   const filtered = reviews.filter(r => {
     if (filter === 'wait') return !r.hasReply
@@ -126,8 +149,15 @@ export default function ReviewPage() {
 
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column' }}>
-      <div style={{ padding:'18px 18px 10px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <div style={{ fontSize:18, fontWeight:700, color:'#1A2421' }}>구글 리뷰</div>
+      <div style={{ padding:'18px 18px 10px' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+          <div style={{ fontSize:18, fontWeight:700, color:'#1A2421' }}>구글 리뷰</div>
+          <button onClick={handlePoll} disabled={polling}
+            style={{ padding:'6px 14px', borderRadius:20, border:'1.5px solid #1D9E75', background: polling?'#E1F5EE':'#1D9E75', color: polling?'#0F6E56':'#fff', fontSize:12, fontWeight:600, cursor: polling?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+            {polling ? '확인 중...' : '🔔 새 리뷰 확인'}
+          </button>
+        </div>
+        {pollResult && <div style={{ fontSize:12, color: pollResult.startsWith('✅')?'#0F6E56':'#E53E3E', background: pollResult.startsWith('✅')?'#E1F5EE':'#FFF5F5', padding:'6px 12px', borderRadius:8, marginBottom:8 }}>{pollResult}</div>}
         <div style={{ display:'flex', gap:5 }}>
           {[{v:'all',l:'전체'},{v:'wait',l:'대기'},{v:'done',l:'완료'}].map(f => (
             <button key={f.v} onClick={() => setFilter(f.v)}

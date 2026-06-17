@@ -4,6 +4,7 @@ import { getIronSession } from 'iron-session';
 import { cookies } from 'next/headers';
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
+import { sendBadReviewAlert, sendReviewAlert } from '../../../../lib/solapi';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -52,7 +53,7 @@ export async function postGBPReply(accessToken, accountId, locationId, reviewId,
 // Claude로 리뷰 분류 + 번역 + 추천 답변 생성
 async function analyzeReview(review) {
   const reviewText = review.comment || '';
-  const starRating = review.starRating; // ONE, TWO, THREE, FOUR, FIVE
+  const starRating = review.starRating;
   const reviewerName = review.reviewer?.displayName || '익명';
 
   const prompt = `당신은 제주도 소상공인(카페, 펜션, 맛집)의 구글맵 리뷰 관리를 돕는 전문가입니다.
@@ -81,7 +82,7 @@ async function analyzeReview(review) {
 }`;
 
   const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-4-6',
     max_tokens: 1000,
     messages: [{ role: 'user', content: prompt }],
   });
@@ -106,12 +107,11 @@ export async function POST(req) {
 
     const userId = session.user.id;
 
-    // Supabase에서 사용자의 GBP 연결 정보 가져오기
-    const { data: gbpConnection, error: connErr } = await supabase
-      .from('gbp_connections')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
+    // 사용자 정보 + GBP 연결 정보 한번에 조회
+    const [{ data: user }, { data: gbpConnection, error: connErr }] = await Promise.all([
+      supabase.from('users').select('phone, shop_name, kakao_notify').eq('id', userId).single(),
+      supabase.from('gbp_connections').select('*').eq('user_id', userId).single(),
+    ]);
 
     if (connErr || !gbpConnection) {
       return NextResponse.json({ error: 'GBP 연결 정보 없음' }, { status: 400 });
@@ -128,7 +128,6 @@ export async function POST(req) {
     for (const review of reviews) {
       const reviewId = review.reviewId;
 
-      // 이미 저장된 리뷰인지 확인 (중복 방지)
       const { data: existing } = await supabase
         .from('reviews')
         .select('id')
@@ -136,15 +135,13 @@ export async function POST(req) {
         .eq('user_id', userId)
         .single();
 
-      if (existing) continue; // 이미 있으면 스킵
+      if (existing) continue;
 
-      // Claude로 분석
       let analysis = null;
       try {
         analysis = await analyzeReview(review);
       } catch (e) {
         console.error('Claude 분석 오류:', e);
-        // 분석 실패해도 저장은 진행
         analysis = {
           type: '일반',
           language: 'ko',
@@ -156,7 +153,6 @@ export async function POST(req) {
 
       const starNum = starRatingToNumber(review.starRating);
 
-      // Supabase에 저장
       const { error: insertErr } = await supabase.from('reviews').insert({
         user_id: userId,
         review_id: reviewId,
@@ -184,10 +180,43 @@ export async function POST(req) {
           koreanSummary: analysis.korean_summary,
           suggestedReplies: analysis.suggested_replies,
         });
+
+        // 카톡 알림 발송 (전화번호 있고, 알림 동의한 경우)
+        if (user?.phone && user?.kakao_notify !== false) {
+          try {
+            const shopName = user.shop_name || '내 가게';
+            const [reply1, reply2] = analysis.suggested_replies;
+
+            if (analysis.type === '악성') {
+              await sendBadReviewAlert({
+                to: user.phone,
+                shopName,
+                star: starNum,
+                summary: analysis.korean_summary,
+                reply1: reply1 || '답변을 준비 중입니다.',
+                reply2: reply2,
+              });
+            } else if (analysis.type === '주의') {
+              await sendReviewAlert({
+                to: user.phone,
+                shopName,
+                star: starNum,
+                summary: analysis.korean_summary,
+              });
+            }
+            // 일반(긍정) 리뷰는 알림 없음
+
+            // 알림 발송 완료 표시
+            await supabase.from('reviews').update({ notified: true })
+              .eq('user_id', userId).eq('review_id', reviewId);
+          } catch (notifyErr) {
+            console.error('카톡 알림 발송 실패:', notifyErr.message);
+            // 알림 실패해도 폴링은 성공으로 처리
+          }
+        }
       }
     }
 
-    // 마지막 폴링 시간 업데이트
     await supabase
       .from('gbp_connections')
       .update({ last_polled_at: new Date().toISOString() })
@@ -213,7 +242,7 @@ export async function GET(req) {
     }
 
     const { searchParams } = new URL(req.url);
-    const type = searchParams.get('type'); // 악성 / 주의 / 일반
+    const type = searchParams.get('type');
     const limit = parseInt(searchParams.get('limit') || '20');
 
     let query = supabase
