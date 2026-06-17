@@ -201,7 +201,9 @@ export async function POST(req) {
                 to: user.phone,
                 shopName,
                 star: starNum,
+                reviewerName: review.reviewer?.displayName || '익명',
                 summary: analysis.korean_summary,
+                reply1: reply1 || '답변을 준비 중입니다.',
               });
             }
             // 일반(긍정) 리뷰는 알림 없음
