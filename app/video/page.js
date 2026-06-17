@@ -35,11 +35,14 @@ function createBGM(ctx, type) {
 
 const BGM_LIST = [
   { id: 'none',   name: '🔇 없음' },
+  { id: 'random', name: '🎲 자동 (매번 다름)' },
   { id: 'calm',   name: '🌊 잔잔한 감성' },
   { id: 'bright', name: '☀️ 밝고 경쾌한' },
   { id: 'jeju',   name: '🌿 제주 자연' },
   { id: 'luxury', name: '✨ 럭셔리' },
 ]
+
+const BGM_TYPES = ['calm', 'bright', 'jeju', 'luxury']
 
 const LANG_LIST = [
   { code: 'en', flag: '🇺🇸', name: '영어' },
@@ -49,13 +52,42 @@ const LANG_LIST = [
 ]
 
 const PLATFORMS = [
-  { id: 'youtube_shorts', icon: '▶️', name: 'YouTube Shorts', ratio: 'portrait' },
-  { id: 'instagram',      icon: '📸', name: 'Instagram 릴스',  ratio: 'portrait' },
-  { id: 'tiktok',         icon: '🎵', name: 'TikTok',          ratio: 'portrait' },
-  { id: 'youtube',        icon: '📺', name: 'YouTube 일반',     ratio: 'landscape' },
+  { id: 'youtube_shorts', icon: '▶️', name: 'YouTube Shorts',   ratio: 'portrait' },
+  { id: 'instagram',      icon: '📸', name: 'Instagram 릴스',    ratio: 'portrait' },
+  { id: 'tiktok',         icon: '🎵', name: 'TikTok',            ratio: 'portrait' },
+  { id: 'xiaohongshu',   icon: '📕', name: '小红书 (샤오홍슈)', ratio: 'portrait' },
+  { id: 'youtube',        icon: '📺', name: 'YouTube 일반',       ratio: 'landscape' },
 ]
 
-async function buildVideo({ imgs, captionText, bgmType, isPortrait, onProgress }) {
+// 플랫폼별 자막 언어 (중국 플랫폼은 중국어 우선)
+const PLATFORM_LANG = { xiaohongshu: 'zh' }
+
+// 언어별 캡션 섹션에서 첫 번째 실제 내용 줄 추출
+function extractSubtitle(text, lang) {
+  if (!text) return ''
+  const flagRe = /[\uD83C][\uDDE6-\uDDFF][\uD83C][\uDDE6-\uDDFF]/g
+  const LANG_KEYS = { zh: '중국어', en: '영어', ja: '일본어', ko: '한국어' }
+
+  if (lang && LANG_KEYS[lang]) {
+    const marker = LANG_KEYS[lang]
+    let inSection = false
+    for (const line of text.split('\n')) {
+      const clean = line.replace(flagRe, '').trim()
+      if (clean.includes(marker) && clean.endsWith(':')) { inSection = true; continue }
+      if (inSection) {
+        if (clean && !clean.endsWith(':')) return clean  // 실제 내용 줄
+        if (clean.endsWith(':')) break                   // 다음 섹션 시작
+      }
+    }
+  }
+
+  // 폴백: 레이블이 아닌 첫 번째 내용 줄 (레이블은 ":"으로 끝남)
+  return text.split('\n')
+    .map(l => l.replace(flagRe, '').trim())
+    .find(l => l && !l.endsWith(':')) || ''
+}
+
+async function buildVideo({ imgs, captionText, bgmType, isPortrait, subtitleLang, onProgress }) {
   const W = isPortrait ? 1080 : 1920
   const H = isPortrait ? 1920 : 1080
   const PER_IMG = 3000  // ms per photo
@@ -65,9 +97,14 @@ async function buildVideo({ imgs, captionText, bgmType, isPortrait, onProgress }
   canvas.width = W; canvas.height = H
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
 
+  // BGM 랜덤: 매번 다른 분위기
+  const activeBgm = bgmType === 'random'
+    ? BGM_TYPES[Math.floor(Math.random() * BGM_TYPES.length)]
+    : bgmType
+
   // AudioContext + BGM
   let audioCtx = null, stopBGM = null, audioTrack = null
-  if (bgmType && bgmType !== 'none') {
+  if (activeBgm && activeBgm !== 'none') {
     try {
       audioCtx = new (window.AudioContext || window.webkitAudioContext)()
       const dest = audioCtx.createMediaStreamDestination()
@@ -82,7 +119,7 @@ async function buildVideo({ imgs, captionText, bgmType, isPortrait, onProgress }
         jeju:    [{ freq: 196, amp: 0.5 }, { freq: 294, amp: 0.3 }, { freq: 370, amp: 0.2 }],
         luxury:  [{ freq: 174, amp: 0.4 }, { freq: 261, amp: 0.3 }, { freq: 349, amp: 0.2 }],
       }
-      const oscs = (presets[bgmType] || presets.calm).map(({ freq, amp }) => {
+      const oscs = (presets[activeBgm] || presets.calm).map(({ freq, amp }) => {
         const osc = audioCtx.createOscillator()
         const g = audioCtx.createGain()
         osc.type = 'sine'
@@ -111,11 +148,8 @@ async function buildVideo({ imgs, captionText, bgmType, isPortrait, onProgress }
 
   recorder.start(200)
 
-  const firstLine = captionText
-    .split('\n')
-    .find(l => l.trim())
-    ?.replace(/[\uD83C][\uDDE6-\uDDFF][\uD83C][\uDDE6-\uDDFF]/g, '') // 국기 이모지 제거
-    ?.trim() || ''
+  // 언어 우선순위: subtitleLang 지정 시 해당 언어 섹션에서 추출, 없으면 첫 실제 내용 줄
+  const firstLine = extractSubtitle(captionText, subtitleLang)
 
   const TOTAL_MS = imgs.length * PER_IMG
 
@@ -242,7 +276,7 @@ export default function VideoPage() {
   const [selectedPlatforms, setSelectedPlatforms] = useState(['youtube_shorts'])
   const [platformRatio, setPlatformRatio] = useState({
     youtube_shorts: 'portrait', instagram: 'portrait',
-    tiktok: 'portrait', youtube: 'landscape',
+    tiktok: 'portrait', xiaohongshu: 'portrait', youtube: 'landscape',
   })
   const [generating, setGenerating] = useState(false)
   const [genProgress, setGenProgress] = useState(0)
@@ -297,10 +331,15 @@ export default function VideoPage() {
       const needLandscape = selectedPlatforms.some(p => platformRatio[p] === 'landscape')
       const result = {}
 
+      // 선택된 플랫폼 중 중국 플랫폼이 있으면 중국어 자막 우선
+      const subtitleLang = selectedPlatforms.some(p => PLATFORM_LANG[p])
+        ? PLATFORM_LANG[selectedPlatforms.find(p => PLATFORM_LANG[p])]
+        : selectedLangs[0] || null
+
       if (needPortrait) {
         setGenMsg('📱 세로 영상 제작 중...')
         const blob = await buildVideo({
-          imgs, captionText: caption, bgmType: selectedBGM, isPortrait: true,
+          imgs, captionText: caption, bgmType: selectedBGM, isPortrait: true, subtitleLang,
           onProgress: p => setGenProgress(needLandscape ? p * 0.5 : p)
         })
         result.portrait = { blob, url: URL.createObjectURL(blob) }
@@ -309,7 +348,7 @@ export default function VideoPage() {
       if (needLandscape) {
         setGenMsg('🖥️ 가로 영상 제작 중...')
         const blob = await buildVideo({
-          imgs, captionText: caption, bgmType: selectedBGM, isPortrait: false,
+          imgs, captionText: caption, bgmType: selectedBGM, isPortrait: false, subtitleLang,
           onProgress: p => setGenProgress(needPortrait ? 50 + p * 0.5 : p)
         })
         result.landscape = { blob, url: URL.createObjectURL(blob) }
