@@ -20,6 +20,10 @@ export default function HomePage() {
   const langLabel = Object.entries(langCount).filter(([,v]) => v > 0)
     .map(([k,v]) => ({ en:'🇺🇸', zh:'🇨🇳', ko:'🇰🇷', ja:'🇯🇵' }[k] + ` ${v}건`).join(' · '))
 
+  // 실제 연동 상태 (하드코딩 X — /api/shop 값으로 판별)
+  const gbConnected = !!(shop.gbp_location_id || shop.gbp_account_id)
+  const ttConnected = !!shop.tiktok_open_id
+
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column' }}>
       <div style={{ padding:'20px 18px 12px', display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
@@ -52,24 +56,47 @@ export default function HomePage() {
         <Card style={{ marginBottom:12 }}>
           <div style={{ fontSize:12, color:'#6B7875', fontWeight:600, marginBottom:8 }}>연동된 채널</div>
           {[
-            { icon:'🔵', name:'Google 비즈니스', sub:'리뷰 답변 · 유튜브', color:'#1D9E75' },
-            { icon:'📸', name:'Instagram', sub:'앱 심사 중...', color:'#EF9F27' },
-            { icon:'🎵', name:'TikTok', sub:'앱 심사 중...', color:'#EF9F27' },
-          ].map(ch => (
-            <div key={ch.name} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'6px 0', borderBottom:'1px solid #F4F6F5' }}>
-              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                <span style={{ fontSize:18 }}>{ch.icon}</span>
-                <div>
-                  <div style={{ fontSize:13, fontWeight:600, color:'#1A2421' }}>{ch.name}</div>
-                  <div style={{ fontSize:10, color:'#B0BAB6' }}>{ch.sub}</div>
+            {
+              icon:'🔵', name:'Google 비즈니스',
+              sub: gbConnected ? '리뷰 답변 · 유튜브' : '연동이 필요해요',
+              connected: gbConnected, review:false,
+            },
+            {
+              icon:'📸', name:'Instagram',
+              sub:'앱 심사 중...', connected:false, review:true,
+            },
+            {
+              icon:'🎵', name:'TikTok',
+              sub: ttConnected ? (shop.tiktok_display_name || '영상 자동 업로드') : '탭해서 연동하기',
+              connected: ttConnected, review:false,
+            },
+          ].map(ch => {
+            const clickable = !ch.connected && !ch.review
+            return (
+              <div key={ch.name}
+                onClick={clickable ? () => router.push('/connect') : undefined}
+                style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'6px 0', borderBottom:'1px solid #F4F6F5', cursor: clickable ? 'pointer' : 'default' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <span style={{ fontSize:18 }}>{ch.icon}</span>
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:600, color:'#1A2421' }}>{ch.name}</div>
+                    <div style={{ fontSize:10, color:'#B0BAB6' }}>{ch.sub}</div>
+                  </div>
                 </div>
+                <span style={{ fontSize:10, fontWeight:600, color: ch.connected ? '#1D9E75' : ch.review ? '#EF9F27' : '#1D9E75' }}>
+                  {ch.connected ? '✓ 연동됨' : ch.review ? '심사중' : '연동하기 →'}
+                </span>
               </div>
-              <span style={{ fontSize:10, color:ch.color, fontWeight:600 }}>{ch.color === '#1D9E75' ? '✓ 연동됨' : '심사중'}</span>
-            </div>
-          ))}
+            )
+          })}
         </Card>
 
         <PrimaryBtn onClick={() => router.push('/video')}>+ 새 영상 만들기</PrimaryBtn>
+
+        <button onClick={() => router.push('/help')}
+          style={{ width:'100%', marginTop:10, padding:'12px', borderRadius:14, border:'1.5px solid #E6EAE8', background:'#fff', color:'#6B7875', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+          💬 도움말 · 사용법이 궁금하세요?
+        </button>
       </div>
       <BottomNav />
     </div>

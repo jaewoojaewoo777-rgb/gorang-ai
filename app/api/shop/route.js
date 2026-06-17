@@ -16,7 +16,10 @@ export async function POST(request) {
     .update({ shop_name: shopName, shop_type: shopType, shop_location: shopLocation, shop_intro: shopIntro })
     .eq('id', session.userId)
 
-  if (error) return NextResponse.json({ error: '저장 실패' }, { status: 500 })
+  if (error) {
+    console.error('shop save error:', error)
+    return NextResponse.json({ error: '저장 실패' }, { status: 500 })
+  }
   return NextResponse.json({ ok: true })
 }
 
@@ -26,7 +29,7 @@ export async function GET() {
 
   const { data } = await supabaseAdmin
     .from('users')
-    .select('shop_name, shop_type, shop_location, shop_intro, email, google_name, gbp_account_id, gbp_location_id')
+    .select('shop_name, shop_type, shop_location, shop_intro, email, google_name, gbp_account_id, gbp_location_id, tiktok_open_id, tiktok_display_name')
     .eq('id', session.userId)
     .single()
 

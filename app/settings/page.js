@@ -11,6 +11,10 @@ export default function SettingsPage() {
     fetch('/api/shop').then(r => r.json()).then(setShop).catch(() => {})
   }, [])
 
+  // 실제 연동 상태 판별
+  const gbConnected = !!(shop.gbp_location_id || shop.gbp_account_id)
+  const ttConnected = !!shop.tiktok_open_id
+
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column' }}>
       <div style={{ padding:'18px 18px 12px' }}>
@@ -34,9 +38,9 @@ export default function SettingsPage() {
         <Card style={{ marginBottom:12 }}>
           <div style={{ fontSize:12, fontWeight:700, color:'#1A2421', marginBottom:10 }}>연동된 계정</div>
           {[
-            { icon:'🔵', name:'Google 비즈니스', status:'연동됨', color:'#1D9E75' },
+            { icon:'🔵', name:'Google 비즈니스', status: gbConnected ? '✓ 연동됨' : '연동 필요', color: gbConnected ? '#1D9E75' : '#B0BAB6' },
             { icon:'📸', name:'Instagram', status:'심사 중', color:'#EF9F27' },
-            { icon:'🎵', name:'TikTok', status:'심사 중', color:'#EF9F27' },
+            { icon:'🎵', name:'TikTok', status: ttConnected ? '✓ 연동됨' : '연동 필요', color: ttConnected ? '#1D9E75' : '#B0BAB6' },
           ].map(ch => (
             <div key={ch.name} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'7px 0', borderBottom:'1px solid #F4F6F5' }}>
               <div style={{ display:'flex', alignItems:'center', gap:8 }}>
@@ -67,6 +71,12 @@ export default function SettingsPage() {
             </div>
           ))}
         </div>
+
+        <button onClick={() => router.push('/help')}
+          style={{ width:'100%', padding:14, borderRadius:14, border:'1.5px solid #E6EAE8', background:'#fff', color:'#1A2421', fontSize:14, fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', marginBottom:12, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <span>💬 도움말 · 사용법 문의</span>
+          <span style={{ color:'#B0BAB6' }}>›</span>
+        </button>
 
         <button onClick={() => { if(confirm('로그아웃 하시겠어요?')) router.push('/') }}
           style={{ width:'100%', padding:14, borderRadius:14, border:'1.5px solid #E6EAE8', background:'#fff', color:'#6B7875', fontSize:14, fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>

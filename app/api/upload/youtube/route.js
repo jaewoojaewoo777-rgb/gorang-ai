@@ -2,29 +2,44 @@ import { NextResponse } from 'next/server'
 import { getSession } from '../../../../lib/session'
 import { supabaseAdmin } from '../../../../lib/db'
 import { uploadYouTubeVideo, refreshAccessToken } from '../../../../lib/google'
+import { updateStreak } from '../../../../lib/streak'
+
+export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 export async function POST(request) {
   const session = await getSession()
+  console.log('[YouTube] session:', JSON.stringify(session))
+
   if (!session.userId) return NextResponse.json({ error: '로그인 필요' }, { status: 401 })
 
   try {
     const formData = await request.formData()
-    const file = formData.get('video')
+    const file = formData.get('video')           // 직접 올린 영상 (기존 방식)
+    const videoUrl = formData.get('videoUrl')    // Supabase URL (새 방식 — 모바일 부담 감소)
     const caption = formData.get('caption') || ''
     const title = formData.get('title') || '고랑AI 업로드'
+    const isShorts = formData.get('isShorts') === 'true'
 
-    if (!file) return NextResponse.json({ error: '영상 파일 필요' }, { status: 400 })
+    if (!file && !videoUrl) return NextResponse.json({ error: '영상 파일 또는 URL 필요' }, { status: 400 })
 
-    const { data: user } = await supabaseAdmin
+    console.log('[YouTube] userId:', session.userId)
+
+    const { data: user, error: userError } = await supabaseAdmin
       .from('users')
       .select('google_access_token, google_refresh_token, google_token_expiry, shop_name')
       .eq('id', session.userId)
       .single()
 
+    console.log('[YouTube] user:', user, 'userError:', userError)
+
+    if (!user) return NextResponse.json({ error: '사용자 정보 없음', detail: userError?.message }, { status: 400 })
+
     // 토큰 갱신
     let accessToken = user.google_access_token
     const expiry = user.google_token_expiry ? new Date(user.google_token_expiry) : null
     if (!expiry || expiry.getTime() - Date.now() < 5 * 60 * 1000) {
+      console.log('[YouTube] 토큰 갱신 중...')
       const newCreds = await refreshAccessToken(user.google_refresh_token)
       accessToken = newCreds.access_token
       await supabaseAdmin.from('users').update({
@@ -34,35 +49,65 @@ export async function POST(request) {
     }
 
     // 파일 버퍼 변환
-    const arrayBuffer = await file.arrayBuffer()
-    const videoBuffer = Buffer.from(arrayBuffer)
+    let videoBuffer, mimeType
+    if (videoUrl) {
+      // 서버가 Supabase URL에서 직접 다운로드 → 모바일은 텍스트만 보내면 됨
+      console.log('[YouTube] URL에서 영상 다운로드:', videoUrl)
+      const videoRes = await fetch(videoUrl)
+      if (!videoRes.ok) {
+        return NextResponse.json({ error: '영상 다운로드 실패', detail: `status ${videoRes.status}` }, { status: 500 })
+      }
+      const arrayBuffer = await videoRes.arrayBuffer()
+      videoBuffer = Buffer.from(arrayBuffer)
+      mimeType = videoRes.headers.get('content-type') || 'video/mp4'
+    } else {
+      const arrayBuffer = await file.arrayBuffer()
+      videoBuffer = Buffer.from(arrayBuffer)
+      mimeType = file.type || 'video/mp4'
+    }
+
+    // Shorts 제목에 #Shorts 추가
+    const finalTitle = isShorts
+      ? `${title} #Shorts`
+      : title
 
     // YouTube 업로드
+    console.log('[YouTube] 업로드 시작:', finalTitle)
     const ytResult = await uploadYouTubeVideo({
       accessToken,
-      title: title || `${user.shop_name} - 고랑AI`,
+      title: finalTitle || `${user.shop_name} - 고랑AI`,
       description: caption,
       videoBuffer,
-      mimeType: file.type || 'video/mp4',
+      mimeType,
+      isShorts,
     })
+
+    console.log('[YouTube] 업로드 완료:', ytResult.id)
 
     // DB에 업로드 기록 저장
     await supabaseAdmin.from('video_uploads').insert({
       user_id: session.userId,
-      title,
+      title: finalTitle,
       caption_en: caption,
       platforms: ['youtube'],
       status: 'done',
       youtube_video_id: ytResult.id,
     })
 
+    // ✅ Streak 업데이트
+    await updateStreak(session.userId)
+
+    const finalVideoUrl = isShorts
+      ? `https://youtube.com/shorts/${ytResult.id}`
+      : `https://youtube.com/watch?v=${ytResult.id}`
+
     return NextResponse.json({
       ok: true,
       youtubeVideoId: ytResult.id,
-      youtubeUrl: `https://youtube.com/shorts/${ytResult.id}`,
+      youtubeUrl: finalVideoUrl,
     })
   } catch (err) {
-    console.error('유튜브 업로드 오류:', err)
+    console.error('[YouTube] 업로드 오류:', err)
     return NextResponse.json({ error: '업로드 실패', detail: err.message }, { status: 500 })
   }
 }
