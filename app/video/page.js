@@ -130,6 +130,7 @@ export default function VideoPage() {
   const [starredMap, setStarredMap] = useState({})            // { platform: true/false }
   const [editingCaption, setEditingCaption] = useState(false)
   const [editCaptionDraft, setEditCaptionDraft] = useState('')
+  const [retranslating, setRetranslating] = useState(false)
 
   // 플랫폼별 캡션 state
   const [platformCaptions, setPlatformCaptions] = useState({})
@@ -358,6 +359,24 @@ useEffect(() => {
         bgmUrl = `https://hjvgekdeqqgxawefrzlk.supabase.co/storage/v1/object/public/BGM/${picked}`
       }
 
+      const convertToWebp = (file) => new Promise((resolve, reject) => {
+        const img = new Image()
+        const url = URL.createObjectURL(file)
+        img.onload = () => {
+          URL.revokeObjectURL(url)
+          const canvas = document.createElement('canvas')
+          canvas.width = img.width
+          canvas.height = img.height
+          canvas.getContext('2d').drawImage(img, 0, 0)
+          canvas.toBlob((blob) => {
+            if (!blob) return reject(new Error('WebP 변환 실패'))
+            resolve(blob)
+          }, 'image/webp', 0.85)
+        }
+        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('이미지 로드 실패')) }
+        img.src = url
+      })
+
       setGenMsg(isMix ? '📤 사진·영상 업로드 중...' : '🖼️ 이미지 업로드 중...')
       setGenProgress(5)
       const sb = createClient(
@@ -373,10 +392,12 @@ useEffect(() => {
         const ts = Date.now()
         mediaItems = await Promise.all(
           mixItems.map(async (it, i) => {
-            const ext = it.type === 'video' ? 'mp4' : 'jpg'
-            const ct  = it.type === 'video' ? 'video/mp4' : 'image/jpeg'
+            const isPhoto = it.type !== 'video'
+            const blob = isPhoto ? await convertToWebp(it.file) : it.file
+            const ext  = isPhoto ? 'webp' : 'mp4'
+            const ct   = isPhoto ? 'image/webp' : 'video/mp4'
             const filePath = `tmp/${ts}_${i}.${ext}`
-            const { error } = await sb.storage.from('videos').upload(filePath, it.file, {
+            const { error } = await sb.storage.from('videos').upload(filePath, blob, {
               contentType: ct, upsert: true
             })
             if (error) throw new Error('업로드 실패: ' + error.message)
@@ -390,9 +411,10 @@ useEffect(() => {
         imageDataUrls = await Promise.all(
           files.map(async (file, i) => {
             const ts = Date.now()
-            const filePath = `tmp/${ts}_${i}.jpg`
-            const { error } = await sb.storage.from('videos').upload(filePath, file, {
-              contentType: 'image/jpeg', upsert: true
+            const webpBlob = await convertToWebp(file)
+            const filePath = `tmp/${ts}_${i}.webp`
+            const { error } = await sb.storage.from('videos').upload(filePath, webpBlob, {
+              contentType: 'image/webp', upsert: true
             })
             if (error) throw new Error('이미지 업로드 실패: ' + error.message)
             const { data } = sb.storage.from('videos').getPublicUrl(filePath)
@@ -551,7 +573,7 @@ useEffect(() => {
         uploadCaption = [pc.caption, (pc.hashtags || []).join(' ')].filter(Boolean).join('\n\n')
       } else {
         const tags = (pc.tags || []).map(t => `#${t}`).join(' ')
-        uploadCaption = [pc.description, tags].filter(Boolean).join('\n\n') || (manualMode ? `${manualKo}\n${manualSub}` : caption)
+        uploadCaption = [pc.description, tags].filter(Boolean).join('\n\n') || (manualMode ? `${manualKo}\n${manualSub}` : extractSection(caption, 'ko'))
       }
 
       // URL 있으면 URL만, 없으면 영상 파일 직접
@@ -1157,9 +1179,50 @@ ${manualSub}`.trim()
                           style={{ flex:1, padding:'9px', borderRadius:10, border:'1.5px solid #E6EAE8', background:'#fff', color:'#6B7875', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                           취소
                         </button>
-                        <button onClick={() => { setCaption(editCaptionDraft); setEditingCaption(false) }}
-                          style={{ flex:2, padding:'9px', borderRadius:10, border:'none', background:'#1D9E75', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                          ✓ 수정 완료
+                        <button onClick={async () => {
+                          const draft = editCaptionDraft
+                          const oldKo = extractSection(caption, 'ko')
+                          const newKo = extractSection(draft, 'ko')
+                          setCaption(draft)
+                          setEditingCaption(false)
+                          setPlatformCaptions({})
+
+                          // 한국어 섹션이 바뀌었으면 번역 자동 재생성
+                          if (newKo && newKo !== oldKo) {
+                            setRetranslating(true)
+                            try {
+                              const res = await fetch('/api/caption/translate', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ koText: newKo, targetLang: subLang }),
+                              })
+                              const data = await res.json()
+                              if (data.translation) {
+                                const langHeader = { en: '[설명글-영어]', zh: '[설명글-중국어]', ja: '[설명글-일본어]' }[subLang]
+                                const allHeaders = ['[설명글-한국어]', '[설명글-영어]', '[설명글-중국어]', '[설명글-일본어]']
+                                // 해당 언어 섹션을 새 번역으로 교체
+                                const lines = draft.split('\n')
+                                let inTarget = false
+                                const newLines = []
+                                for (const line of lines) {
+                                  const trimmed = line.trim()
+                                  if (trimmed === langHeader) { inTarget = true; newLines.push(line); continue }
+                                  if (allHeaders.includes(trimmed) && inTarget) { inTarget = false }
+                                  if (!inTarget) newLines.push(line)
+                                  else if (inTarget && !allHeaders.includes(trimmed) && trimmed) continue // 기존 번역 제거
+                                }
+                                // 언어 섹션에 새 번역 삽입
+                                const headerIdx = newLines.findIndex(l => l.trim() === langHeader)
+                                if (headerIdx !== -1) newLines.splice(headerIdx + 1, 0, data.translation)
+                                setCaption(newLines.join('\n'))
+                              }
+                            } catch (e) { console.error('자동 번역 오류:', e) }
+                            setRetranslating(false)
+                          }
+                        }}
+                          disabled={retranslating}
+                          style={{ flex:2, padding:'9px', borderRadius:10, border:'none', background: retranslating ? '#5DCAA5' : '#1D9E75', color:'#fff', fontSize:12, fontWeight:700, cursor: retranslating ? 'not-allowed' : 'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                          {retranslating ? '번역 중...' : '✓ 수정 완료'}
                         </button>
                       </div>
                     </div>
@@ -1226,6 +1289,11 @@ ${manualSub}`.trim()
             {/* 플랫폼별 캡션 & 해시태그 */}
             <div style={{ marginBottom:14 }}>
               <div style={{ fontSize:12, fontWeight:700, color:'#1A2421', marginBottom:10 }}>📝 플랫폼별 캡션 & 해시태그</div>
+              {Object.keys(platformCaptions).length === 0 && (
+                <div style={{ background:'#FFF8E1', border:'1.5px solid #F5C842', borderRadius:10, padding:'10px 12px', marginBottom:10, fontSize:11, color:'#7A5C00' }}>
+                  ✏️ 캡션이 수정됐어요. 각 플랫폼의 <b>AI 자동생성</b> 버튼을 눌러 새 캡션을 만들어주세요.
+                </div>
+              )}
               {selectedPlatforms.map(pid => {
                 const p = PLATFORMS.find(x => x.id === pid)
                 const pc = platformCaptions[pid] || {}
