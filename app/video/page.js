@@ -131,6 +131,7 @@ export default function VideoPage() {
   const [editingCaption, setEditingCaption] = useState(false)
   const [editCaptionDraft, setEditCaptionDraft] = useState('')
   const [retranslating, setRetranslating] = useState(false)
+  const prevTitleRef = useRef('')
 
   // 플랫폼별 캡션 state
   const [platformCaptions, setPlatformCaptions] = useState({})
@@ -142,6 +143,14 @@ export default function VideoPage() {
     .then(d => { if (d.ok) setStreakInfo(d) })
     .catch(() => {})
 }, [])
+  // 주제목 변경 시 플랫폼 캡션 초기화
+  useEffect(() => {
+    if (titleText !== prevTitleRef.current && Object.keys(platformCaptions).length > 0) {
+      setPlatformCaptions({})
+    }
+    prevTitleRef.current = titleText
+  }, [titleText])
+
   const photoRef = useRef()
   const videoRef = useRef()
   const mixPhotoRef = useRef()
@@ -260,7 +269,7 @@ useEffect(() => {
   const generatePlatformCaption = async (platformId) => {
     setCaptionGenerating(prev => ({ ...prev, [platformId]: true }))
     const baseKo = extractSection(caption, 'ko') || manualKo || ''
-    const title = extractSection(caption, 'titleLine1') || titleText?.split('\n')[0] || ''
+    const title = (titleText?.split('\n')[0] || '').trim() || extractSection(caption, 'titleLine1') || ''
 
     const prompts = {
       youtube_shorts: `제주도 소상공인 유튜브 쇼츠용 캡션을 만들어줘. JSON으로만 응답. 다른 텍스트 없이 JSON만.

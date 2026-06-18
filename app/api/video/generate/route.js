@@ -7,19 +7,15 @@ function splitText(text, count) {
   if (!text) return Array(count).fill('')
   if (count === 1) return [text.trim()]
 
-  // 문장 단위로 분리 (마침표/물음표/느낌표 + 쉼표 기준)
-  // 단어로 쪼개면 "두 / 통창 너머"처럼 어색하게 끊기므로 문장/구 단위만 사용
   let units = text
-    .split(/(?<=[.!?。！？])\s+/)        // 1차: 문장부호로
+    .split(/(?<=[.!?。！？])\s+/)
     .map(s => s.trim())
     .filter(Boolean)
 
-  // 문장이 사진 수보다 적으면 쉼표로 한 번 더 분리 (단, 단어 쪼개기는 안 함)
   if (units.length < count) {
     const reSplit = []
     for (const u of units) {
       if (u.length > 20 && u.includes(',')) {
-        // 긴 문장만 쉼표로 분리
         reSplit.push(...u.split(/,\s*/).map(s => s.trim()).filter(Boolean))
       } else {
         reSplit.push(u)
@@ -29,20 +25,28 @@ function splitText(text, count) {
   }
 
   const res = Array(count).fill('')
-
   if (units.length >= count) {
-    // 유닛이 충분하면 균등 배분
     const per = Math.ceil(units.length / count)
     for (let i = 0; i < count; i++)
       res[i] = units.slice(i * per, (i + 1) * per).join(' ').trim()
   } else {
-    // 유닛이 모자라면: 각 유닛을 사진에 하나씩, 나머지 사진은 빈칸
-    // (문장 중간이 잘리는 것보다 빈칸이 자연스러움)
-    for (let i = 0; i < units.length; i++) {
-      res[i] = units[i]
-    }
+    for (let i = 0; i < units.length; i++) res[i] = units[i]
   }
   return res
+}
+
+// 외국어 자막을 한국어 청크 위치에 맞춰 정렬
+// 한국어가 비어있는 슬롯에는 외국어도 비움 → 내용이 항상 같은 사진에 표시됨
+function alignSubToKo(subText, koChunks) {
+  const n = koChunks.length
+  const nonEmptyIdx = koChunks.map((t, i) => t.trim() ? i : -1).filter(i => i >= 0)
+  const result = Array(n).fill('')
+  if (!subText.trim() || nonEmptyIdx.length === 0) return result
+
+  // 외국어를 ko 비어있지않은 슬롯 수만큼 분할
+  const subParts = splitText(subText, nonEmptyIdx.length)
+  nonEmptyIdx.forEach((pos, j) => { result[pos] = subParts[j] || '' })
+  return result
 }
 
 // Railway 작업 완료될 때까지 폴링
@@ -91,7 +95,7 @@ export async function POST(request) {
       : imageDataUrls.length
     const n = Math.max(1, photoCount)
     const koChunks  = splitText(koText, n)
-    const subChunks = splitText(subText, n)
+    const subChunks = alignSubToKo(subText, koChunks)
     const captionArray = captions || koChunks.map((ko, i) => ({
       ko,
       sub: subChunks[i] || '',
