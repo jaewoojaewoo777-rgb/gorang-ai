@@ -38,6 +38,16 @@ const PLATFORMS = [
   { id: 'xiaohongshu',   icon: '📕', name: '샤오홍수 小红书',   ratio: 'portrait',  ratioLabel: '세로 9:16' },
 ]
 
+const TITLE_FONT_OPTIONS = [
+  { id: 'GowunBatang',    label: '고운바탕',    desc: '고급 명조체 (기본)',  preview: '고랑 Gorang' },
+  { id: 'BlackHanSans',   label: '블랙한산스',  desc: '굵고 임팩트 강한',   preview: '고랑 Gorang' },
+  { id: 'Pretendard',     label: '프리텐다드',  desc: '세련된 모던 산세리프', preview: '고랑 Gorang' },
+  { id: 'DoHyeon',        label: '도현',        desc: '깔끔 고딕',           preview: '고랑 Gorang' },
+  { id: 'Jua',            label: '주아',        desc: '귀엽고 둥근 고딕',    preview: '고랑 Gorang' },
+  { id: 'Gaegu',          label: '개구',        desc: '손글씨 느낌',         preview: '고랑 Gorang' },
+  { id: 'NanumPen',       label: '나눔펜',      desc: '캐주얼 손글씨',       preview: '고랑 Gorang' },
+]
+
 const TONE_OPTIONS = [
   { id: 'trendy',    emoji: '🔥', label: '트렌디',   desc: 'MZ 감성, 요즘 말투' },
   { id: 'emotional', emoji: '🌙', label: '감성',     desc: '잔잔하고 서정적' },
@@ -118,6 +128,7 @@ export default function VideoPage() {
   const [captionTone, setCaptionTone] = useState('trendy')  // 캡션 말투
   const [selectedBGM, setSelectedBGM] = useState('auto')
   const [titleText, setTitleText] = useState('')
+  const [titleFont, setTitleFont] = useState('GowunBatang')
   const [selectedPlatforms, setSelectedPlatforms] = useState(['youtube_shorts'])
   const [generating, setGenerating] = useState(false)
   const [genProgress, setGenProgress] = useState(0)
@@ -468,7 +479,7 @@ useEffect(() => {
         setGenMsg('📱 세로 영상 제작 중... (최대 1~2분)')
         const url = await renderAndWait({
           imageDataUrls, koText, subText, titleLine1, titleLine2,
-          bgmUrl, isPortrait: true, subLang, shopType, mediaItems, tone: captionTone,
+          bgmUrl, isPortrait: true, subLang, shopType, mediaItems, tone: captionTone, titleFont,
         }, 20, needLandscape ? 50 : 88)
         result.portrait = { url, blob: null }
         setGenProgress(needLandscape ? 55 : 90)
@@ -478,7 +489,7 @@ useEffect(() => {
         setGenMsg('🖥️ 가로 영상 제작 중... (최대 1~2분)')
         const url = await renderAndWait({
           imageDataUrls, koText, subText, titleLine1, titleLine2,
-          bgmUrl, isPortrait: false, subLang, shopType, mediaItems, tone: captionTone,
+          bgmUrl, isPortrait: false, subLang, shopType, mediaItems, tone: captionTone, titleFont,
         }, needPortrait ? 60 : 20, 88)
         result.landscape = { url, blob: null }
         setGenProgress(90)
@@ -1088,7 +1099,20 @@ ${manualSub}`.trim()
               placeholder={"1줄: JEJU CAFE\n2줄: 천국같은 에메랄드빛 오션뷰 카페"}
               style={{ width:'100%', minHeight:70, padding:'10px 12px', borderRadius:10, border:'1.5px solid #5DCAA5', fontSize:13, color:'#1A2421', fontFamily:'Noto Sans KR, sans-serif', boxSizing:'border-box', outline:'none', marginBottom:4, resize:'none', lineHeight:1.6 }}
             />
-            <div style={{ fontSize:11, color:'#B0BAB6', marginBottom:10 }}>↵ 엔터로 줄 구분 — 1줄: 영문 제목 / 2줄: 한국어 설명</div>
+            <div style={{ fontSize:11, color:'#B0BAB6', marginBottom:6 }}>↵ 엔터로 줄 구분 — 1줄: 영문 제목 / 2줄: 한국어 설명</div>
+            <div style={{ marginBottom:10 }}>
+              <div style={{ fontSize:11, color:'#6B7875', fontWeight:600, marginBottom:6 }}>🔤 주제목 폰트</div>
+              <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+                {TITLE_FONT_OPTIONS.map(f => (
+                  <button key={f.id} onClick={() => setTitleFont(f.id)}
+                    title={f.desc}
+                    style={{ padding:'5px 10px', borderRadius:16, border:`1.5px solid ${titleFont===f.id?'#5DCAA5':'#E6EAE8'}`, background:titleFont===f.id?'#E1F5EE':'#fff', color:titleFont===f.id?'#0F6E56':'#6B7875', fontSize:11, fontWeight:titleFont===f.id?700:400, cursor:'pointer' }}>
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+              <div style={{ fontSize:10, color:'#B0BAB6', marginTop:4 }}>{TITLE_FONT_OPTIONS.find(f=>f.id===titleFont)?.desc}</div>
+            </div>
             <div style={{ fontSize:12, fontWeight:600, color:'#1A2421', marginBottom:6 }}>🇰🇷 설명글 (하단 자막)</div>
             <textarea
               value={manualKo}
@@ -1143,6 +1167,19 @@ ${manualSub}`.trim()
                         style={{ width:'100%', marginTop:8, padding:'8px 10px', borderRadius:8, border:'1.5px solid #C8EFE0', fontSize:12, color:'#1A2421', fontFamily:'Noto Sans KR, sans-serif', boxSizing:'border-box', outline:'none', resize:'none', lineHeight:1.6 }}
                       />
                       <div style={{ fontSize:11, color:'#B0BAB6', marginTop:4 }}>✏️ 1줄: 영문 제목 / 2줄: 한국어 훅 (엔터로 구분)</div>
+                      <div style={{ marginTop:10 }}>
+                        <div style={{ fontSize:11, color:'#6B7875', fontWeight:600, marginBottom:6 }}>🔤 주제목 폰트</div>
+                        <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+                          {TITLE_FONT_OPTIONS.map(f => (
+                            <button key={f.id} onClick={() => setTitleFont(f.id)}
+                              title={f.desc}
+                              style={{ padding:'5px 10px', borderRadius:16, border:`1.5px solid ${titleFont===f.id?'#5DCAA5':'#E6EAE8'}`, background:titleFont===f.id?'#E1F5EE':'#fff', color:titleFont===f.id?'#0F6E56':'#6B7875', fontSize:11, fontWeight:titleFont===f.id?700:400, cursor:'pointer' }}>
+                              {f.label}
+                            </button>
+                          ))}
+                        </div>
+                        <div style={{ fontSize:10, color:'#B0BAB6', marginTop:4 }}>{TITLE_FONT_OPTIONS.find(f=>f.id===titleFont)?.desc}</div>
+                      </div>
                     </div>
                     <div style={{ borderTop:'1px solid rgba(0,0,0,0.06)', paddingTop:10, marginBottom:8 }}>
                       <div style={{ fontSize:11, color:'#6B7875', fontWeight:600, marginBottom:4 }}>🇰🇷 설명글 (하단 자막)</div>

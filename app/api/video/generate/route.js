@@ -79,8 +79,9 @@ export async function POST(request) {
       subLang = 'none',
       captions,
       shopType = null,
-      tone = null,   // 캡션 말투(trendy/emotional/cute/luxury/info) → 폰트 자동 선택용
-      mediaItems,   // [{ type:'photo'|'video', url }] — 사진+영상 혼합
+      tone = null,      // 캡션 말투(trendy/emotional/cute/luxury/info) → 자막 폰트 자동 선택용
+      titleFont = null, // 주제목 폰트 (UI에서 직접 선택, null이면 서버 기본값)
+      mediaItems,       // [{ type:'photo'|'video', url }] — 사진+영상 혼합
     } = await request.json()
 
     // 혼합 모드: mediaItems가 있으면 사진만 골라 자막 매칭
@@ -119,6 +120,7 @@ export async function POST(request) {
         titleLine2: titleLine2 || '',
         shopType: shopType || '',
         tone: tone || '',
+        titleFont: titleFont || '',
       }),
     })
 
