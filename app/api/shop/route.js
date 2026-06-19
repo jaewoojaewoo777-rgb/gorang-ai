@@ -29,7 +29,7 @@ export async function GET() {
 
   const { data } = await supabaseAdmin
     .from('users')
-    .select('shop_name, shop_type, shop_location, shop_intro, email, google_name, gbp_account_id, gbp_location_id, tiktok_open_id, tiktok_display_name')
+    .select('shop_name, shop_type, shop_location, shop_intro, email, google_name, gbp_account_id, gbp_location_id, tiktok_open_id, tiktok_display_name, instagram_user_id, tripadvisor_location_id, tripadvisor_location_name')
     .eq('id', session.userId)
     .single()
 

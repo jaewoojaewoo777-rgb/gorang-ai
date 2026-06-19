@@ -23,6 +23,43 @@ export default function HomePage() {
   // 실제 연동 상태 (하드코딩 X — /api/shop 값으로 판별)
   const gbConnected = !!(shop.gbp_location_id || shop.gbp_account_id)
   const ttConnected = !!shop.tiktok_open_id
+  const igConnected = !!shop.instagram_user_id
+  const taConnected = !!shop.tripadvisor_location_id
+
+  const channels = [
+    {
+      icon: '🔵', name: 'Google 비즈니스',
+      sub: gbConnected ? '리뷰 답변 · 구글맵' : '연동이 필요해요',
+      connected: gbConnected, review: false,
+    },
+    {
+      icon: '▶️', name: 'YouTube',
+      sub: gbConnected ? '쇼츠 자동 업로드' : '구글 연동 시 자동 사용',
+      connected: gbConnected, review: false,
+    },
+    {
+      icon: '📸', name: 'Instagram',
+      sub: '앱 심사 중...', connected: false, review: true,
+    },
+    {
+      icon: '📘', name: 'Facebook',
+      sub: '앱 심사 중...', connected: false, review: true,
+    },
+    {
+      icon: '🎵', name: 'TikTok',
+      sub: ttConnected ? (shop.tiktok_display_name || '영상 자동 업로드') : '탭해서 연동하기',
+      connected: ttConnected, review: false,
+    },
+    {
+      icon: '🦉', name: 'TripAdvisor',
+      sub: taConnected ? (shop.tripadvisor_location_name || '리뷰 알림 수신 중') : '탭해서 연동하기',
+      connected: taConnected, review: false,
+    },
+    {
+      icon: '🇨🇳', name: 'RedNote',
+      sub: '탭해서 연동하기', connected: false, review: false,
+    },
+  ]
 
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column' }}>
@@ -55,27 +92,13 @@ export default function HomePage() {
 
         <Card style={{ marginBottom:12 }}>
           <div style={{ fontSize:12, color:'#6B7875', fontWeight:600, marginBottom:8 }}>연동된 채널</div>
-          {[
-            {
-              icon:'🔵', name:'Google 비즈니스',
-              sub: gbConnected ? '리뷰 답변 · 유튜브' : '연동이 필요해요',
-              connected: gbConnected, review:false,
-            },
-            {
-              icon:'📸', name:'Instagram',
-              sub:'앱 심사 중...', connected:false, review:true,
-            },
-            {
-              icon:'🎵', name:'TikTok',
-              sub: ttConnected ? (shop.tiktok_display_name || '영상 자동 업로드') : '탭해서 연동하기',
-              connected: ttConnected, review:false,
-            },
-          ].map(ch => {
+          {channels.map((ch, i) => {
             const clickable = !ch.connected && !ch.review
+            const isLast = i === channels.length - 1
             return (
               <div key={ch.name}
                 onClick={clickable ? () => router.push('/connect') : undefined}
-                style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'6px 0', borderBottom:'1px solid #F4F6F5', cursor: clickable ? 'pointer' : 'default' }}>
+                style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'6px 0', borderBottom: isLast ? 'none' : '1px solid #F4F6F5', cursor: clickable ? 'pointer' : 'default' }}>
                 <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                   <span style={{ fontSize:18 }}>{ch.icon}</span>
                   <div>
