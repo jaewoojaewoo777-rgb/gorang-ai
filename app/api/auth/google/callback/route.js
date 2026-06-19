@@ -40,7 +40,7 @@ export async function GET(request) {
     }
 
     // 4. Supabase에 사용자 저장/업데이트
-    const { data: user, error: dbError } = await supabaseAdmin
+    let { data: user, error: dbError } = await supabaseAdmin
       .from('users')
       .upsert({
         google_id: googleId,
@@ -58,7 +58,24 @@ export async function GET(request) {
       .select()
       .single()
 
-    if (dbError) throw dbError
+    if (dbError) {
+      // 토큰 컬럼이 아직 없을 경우 기본 정보만으로 재시도
+      console.error('Google upsert 오류 (전체):', dbError.message)
+      const res = await supabaseAdmin
+        .from('users')
+        .upsert({
+          google_id: googleId,
+          email,
+          google_name: name,
+          gbp_account_id: gbpAccountId,
+          gbp_location_id: gbpLocationId,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'google_id' })
+        .select()
+        .single()
+      if (res.error) throw res.error
+      user = res.data
+    }
 
     // 5. 세션에 userId 저장
     const session = await getSession()

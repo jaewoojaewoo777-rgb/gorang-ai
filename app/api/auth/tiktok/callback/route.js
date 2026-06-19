@@ -40,7 +40,7 @@ export async function GET(request) {
     ).toISOString()
 
     // 4. Supabase users 테이블에 틱톡 토큰 저장
-    await supabaseAdmin
+    const { error: dbError } = await supabaseAdmin
       .from('users')
       .update({
         tiktok_open_id: token.open_id,
@@ -51,6 +51,16 @@ export async function GET(request) {
         updated_at: new Date().toISOString(),
       })
       .eq('id', session.userId)
+
+    if (dbError) {
+      console.error('틱톡 DB 저장 오류 (전체):', dbError.message)
+      // 일부 컬럼이 없을 경우 최소한 open_id만이라도 저장
+      const { error: fallbackErr } = await supabaseAdmin
+        .from('users')
+        .update({ tiktok_open_id: token.open_id, tiktok_display_name: displayName })
+        .eq('id', session.userId)
+      if (fallbackErr) console.error('틱톡 DB 최소 저장도 실패:', fallbackErr.message)
+    }
 
     // 5. state 정리
     session.tiktokState = null

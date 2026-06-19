@@ -29,11 +29,12 @@ export async function GET() {
 
   const { data } = await supabaseAdmin
     .from('users')
-    .select('shop_name, shop_type, shop_location, shop_intro, email, google_name, gbp_account_id, gbp_location_id, tiktok_open_id, tiktok_display_name, instagram_user_id, tripadvisor_location_id, tripadvisor_location_name, google_access_token')
+    .select('shop_name, shop_type, shop_location, shop_intro, email, google_name, google_id, gbp_account_id, gbp_location_id, tiktok_open_id, tiktok_display_name, instagram_user_id, tripadvisor_location_id, tripadvisor_location_name')
     .eq('id', session.userId)
     .single()
 
   if (!data) return NextResponse.json({})
-  const { google_access_token, ...rest } = data
-  return NextResponse.json({ ...rest, google_connected: !!google_access_token })
+  const { google_id, ...rest } = data
+  // google_id 존재 = 구글 계정으로 로그인됨 = YouTube 사용 가능
+  return NextResponse.json({ ...rest, google_connected: !!google_id })
 }
