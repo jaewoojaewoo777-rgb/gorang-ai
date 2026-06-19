@@ -1,7 +1,18 @@
+import { getIronSession } from 'iron-session'
 import { NextResponse } from 'next/server'
 import { getOAuthClient, getGBPAccounts, getGBPLocations } from '../../../../../lib/google'
 import { supabaseAdmin } from '../../../../../lib/db'
-import { getSession } from '../../../../../lib/session'
+
+const SESSION_OPTIONS = {
+  password: process.env.SESSION_SECRET || 'gorang-ai-default-secret-change-me-32ch',
+  cookieName: 'gorang_session',
+  cookieOptions: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    sameSite: 'lax',
+    maxAge: 60 * 60 * 24 * 30,
+  },
+}
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url)
@@ -59,7 +70,6 @@ export async function GET(request) {
       .single()
 
     if (dbError) {
-      // 토큰 컬럼이 아직 없을 경우 기본 정보만으로 재시도
       console.error('Google upsert 오류 (전체):', dbError.message)
       const res = await supabaseAdmin
         .from('users')
@@ -77,13 +87,7 @@ export async function GET(request) {
       user = res.data
     }
 
-    // 5. 세션에 userId 저장
-    const session = await getSession()
-    session.userId = user.id
-    session.googleId = googleId
-    await session.save()
-
-    // 6. 가게 정보 있으면 홈으로, 없으면 등록으로
+    // 5. 가게 정보 확인 후 리다이렉트 URL 결정
     const { data: profile } = await supabaseAdmin
       .from('users')
       .select('shop_name')
@@ -91,7 +95,16 @@ export async function GET(request) {
       .single()
 
     const redirectTo = profile?.shop_name?.trim() ? '/home' : '/register'
-    return NextResponse.redirect(new URL(redirectTo, request.url))
+    const response = NextResponse.redirect(new URL(redirectTo, request.url))
+
+    // 6. 세션 쿠키를 리다이렉트 응답에 직접 기록
+    //    (cookies() 패턴은 Route Handler redirect에서 쿠키가 누락됨 → 이 패턴으로 수정)
+    const session = await getIronSession(request, response, SESSION_OPTIONS)
+    session.userId = user.id
+    session.googleId = googleId
+    await session.save()
+
+    return response
 
   } catch (err) {
     console.error('Google OAuth 오류:', err)

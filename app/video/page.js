@@ -517,6 +517,7 @@ useEffect(() => {
 
       setGenProgress(100)
       setVideos(result)
+      setModifyMode(null)
       setStep(3)
     } catch (e) {
       console.error(e)
@@ -1497,7 +1498,7 @@ ${manualSub}`.trim()
                       ))}
                     </div>
                     <button
-                      onClick={() => { setModifyMode(null); handleGenerate() }}
+                      onClick={() => { handleGenerate() }}
                       disabled={generating}
                       style={{ width:'100%', padding:'10px', borderRadius:10, border:'none', background:generating?'#5DCAA5':'#1D9E75', color:'#fff', fontSize:13, fontWeight:700, cursor:generating?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                       {generating ? '생성 중...' : `🔄 ${BGM_LIST.find(b=>b.id===selectedBGM)?.name || 'BGM'}으로 다시 만들기`}

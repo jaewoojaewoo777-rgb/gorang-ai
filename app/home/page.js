@@ -44,6 +44,18 @@ export default function HomePage() {
       icon: '📘', name: 'Facebook',
       sub: '앱 심사 중...', connected: false, review: true,
     },
+    {
+      icon: '🎵', name: 'TikTok',
+      sub: '준비 중...', connected: false, review: true,
+    },
+    {
+      icon: '🌍', name: 'TripAdvisor',
+      sub: '준비 중...', connected: false, review: true,
+    },
+    {
+      icon: '📕', name: 'RedNote',
+      sub: '준비 중...', connected: false, review: true,
+    },
   ]
 
   return (
