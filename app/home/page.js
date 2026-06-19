@@ -25,6 +25,7 @@ export default function HomePage() {
   const ttConnected = !!shop.tiktok_open_id
   const igConnected = !!shop.instagram_user_id
   const taConnected = !!shop.tripadvisor_location_id
+  const anyConnected = gbConnected || ttConnected || taConnected
 
   const channels = [
     {
@@ -106,15 +107,30 @@ export default function HomePage() {
                     <div style={{ fontSize:10, color:'#B0BAB6' }}>{ch.sub}</div>
                   </div>
                 </div>
-                <span style={{ fontSize:10, fontWeight:600, color: ch.connected ? '#1D9E75' : ch.review ? '#EF9F27' : '#1D9E75' }}>
-                  {ch.connected ? '✓ 연동됨' : ch.review ? '심사중' : '연동하기 →'}
-                </span>
+                {ch.connected
+                  ? <span style={{ fontSize:10, fontWeight:700, color:'#fff', background:'#1D9E75', padding:'3px 10px', borderRadius:10 }}>✓ 연동됨</span>
+                  : <span style={{ fontSize:10, fontWeight:600, color: ch.review ? '#EF9F27' : '#1D9E75' }}>
+                      {ch.review ? '심사중' : '연동하기 →'}
+                    </span>
+                }
               </div>
             )
           })}
         </Card>
 
-        <PrimaryBtn onClick={() => router.push('/video')}>+ 새 영상 만들기</PrimaryBtn>
+        {anyConnected
+          ? <PrimaryBtn onClick={() => router.push('/video')}>+ 새 영상 만들기</PrimaryBtn>
+          : <div style={{ border:'1.5px solid #E6EAE8', borderRadius:14, padding:'16px', textAlign:'center' }}>
+              <div style={{ fontSize:14, fontWeight:700, color:'#1A2421', marginBottom:6 }}>🔗 먼저 채널을 연동해주세요</div>
+              <div style={{ fontSize:12, color:'#6B7875', marginBottom:12, lineHeight:1.6 }}>
+                구글, 틱톡, 트립어드바이저 중 하나 이상 연동하면<br/>영상을 만들고 바로 업로드할 수 있어요.
+              </div>
+              <button onClick={() => router.push('/connect')}
+                style={{ padding:'11px 24px', borderRadius:12, border:'none', background:'#1D9E75', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                채널 연동하러 가기 →
+              </button>
+            </div>
+        }
 
         <button onClick={() => router.push('/help')}
           style={{ width:'100%', marginTop:10, padding:'12px', borderRadius:14, border:'1.5px solid #E6EAE8', background:'#fff', color:'#6B7875', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>

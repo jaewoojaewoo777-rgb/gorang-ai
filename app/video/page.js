@@ -142,6 +142,10 @@ export default function VideoPage() {
   const [savedCaptionIds, setSavedCaptionIds] = useState({})  // { platform: captionId }
   const [starredMap, setStarredMap] = useState({})            // { platform: true/false }
   const [editingCaption, setEditingCaption] = useState(false)
+  const [modifyMode, setModifyMode] = useState(null)          // null | 'subtitle' | 'bgm'
+  const [modSubTitle, setModSubTitle] = useState('')
+  const [modSubKo, setModSubKo] = useState('')
+  const [modSubForeign, setModSubForeign] = useState('')
   const [editCaptionDraft, setEditCaptionDraft] = useState('')
   const [retranslating, setRetranslating] = useState(false)
   const prevTitleRef = useRef('')
@@ -767,6 +771,7 @@ ${manualSub}`.trim()
     setCustomPrompt(''); setManualKo(''); setManualSub(''); setManualMode(false)
     setPlatformCaptions({}); setCaptionGenerating({})
     setSavedCaptionIds({}); setStarredMap({})
+    setModifyMode(null); setModSubTitle(''); setModSubKo(''); setModSubForeign('')
   }
 
   // 별표 토글
@@ -1412,6 +1417,86 @@ ${manualSub}`.trim()
                     style={{ flex:1, padding:'9px 0', borderRadius:10, border:'1.5px solid #1D9E75', background:'#fff', color:'#1D9E75', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                     ⭐ 가로 영상 저장
                   </button>
+                )}
+              </div>
+            )}
+
+            {/* 자막/BGM 수정 패널 */}
+            {(videos.portrait || videos.landscape) && (
+              <div style={{ marginBottom:14, border:'1.5px solid #E6EAE8', borderRadius:14, padding:14 }}>
+                <div style={{ fontSize:12, fontWeight:700, color:'#6B7875', marginBottom:10 }}>✏️ 수정하고 싶은 게 있나요?</div>
+                <div style={{ display:'flex', gap:8, marginBottom: modifyMode ? 12 : 0 }}>
+                  <button
+                    onClick={() => {
+                      if (modifyMode === 'subtitle') { setModifyMode(null); return }
+                      const t1 = titleText ? titleText.split('\n')[0] : extractSection(caption, 'titleLine1')
+                      const t2 = titleText ? titleText.split('\n')[1] : extractSection(caption, 'titleLine2')
+                      const ko = manualMode ? manualKo : extractSection(caption, 'ko')
+                      const foreign = manualMode ? manualSub : extractSection(caption, subLang)
+                      setModSubTitle([t1, t2].filter(Boolean).join('\n'))
+                      setModSubKo(ko || '')
+                      setModSubForeign(foreign || '')
+                      setModifyMode('subtitle')
+                    }}
+                    style={{ flex:1, padding:'9px 0', borderRadius:10, border:`1.5px solid ${modifyMode==='subtitle'?'#1D9E75':'#E6EAE8'}`, background:modifyMode==='subtitle'?'#E1F5EE':'#fff', color:modifyMode==='subtitle'?'#0F6E56':'#6B7875', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                    ✏️ 자막 수정
+                  </button>
+                  <button
+                    onClick={() => setModifyMode(modifyMode === 'bgm' ? null : 'bgm')}
+                    style={{ flex:1, padding:'9px 0', borderRadius:10, border:`1.5px solid ${modifyMode==='bgm'?'#1D9E75':'#E6EAE8'}`, background:modifyMode==='bgm'?'#E1F5EE':'#fff', color:modifyMode==='bgm'?'#0F6E56':'#6B7875', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                    🎵 BGM 변경
+                  </button>
+                </div>
+
+                {modifyMode === 'subtitle' && (
+                  <div>
+                    <div style={{ fontSize:11, color:'#6B7875', fontWeight:600, marginBottom:4 }}>🎬 주제목 (엔터로 2줄 구분)</div>
+                    <textarea value={modSubTitle} onChange={e => setModSubTitle(e.target.value)} rows={2}
+                      placeholder={'1줄: JEJU CAFE\n2줄: 제주에서만 느낄 수 있어'}
+                      style={{ width:'100%', padding:'8px 10px', borderRadius:8, border:'1.5px solid #C8EFE0', fontSize:12, color:'#1A2421', fontFamily:'Noto Sans KR, sans-serif', boxSizing:'border-box', outline:'none', resize:'none', lineHeight:1.6, marginBottom:8 }} />
+                    <div style={{ fontSize:11, color:'#6B7875', fontWeight:600, marginBottom:4 }}>🇰🇷 한국어 자막</div>
+                    <textarea value={modSubKo} onChange={e => setModSubKo(e.target.value)} rows={2}
+                      placeholder="한국어 자막 내용"
+                      style={{ width:'100%', padding:'8px 10px', borderRadius:8, border:'1.5px solid #C8EFE0', fontSize:12, color:'#1A2421', fontFamily:'Noto Sans KR, sans-serif', boxSizing:'border-box', outline:'none', resize:'vertical', lineHeight:1.5, marginBottom:8 }} />
+                    <div style={{ fontSize:11, color:'#6B7875', fontWeight:600, marginBottom:4 }}>
+                      {SUB_LANG.find(l=>l.code===subLang)?.flag} 외국어 자막 ({SUB_LANG.find(l=>l.code===subLang)?.name}, 선택)
+                    </div>
+                    <textarea value={modSubForeign} onChange={e => setModSubForeign(e.target.value)} rows={2}
+                      placeholder="외국어 자막 (비우면 한국어만 표시)"
+                      style={{ width:'100%', padding:'8px 10px', borderRadius:8, border:'1.5px solid #E6EAE8', fontSize:12, color:'#1A2421', fontFamily:'Noto Sans KR, sans-serif', boxSizing:'border-box', outline:'none', resize:'vertical', lineHeight:1.5, marginBottom:10 }} />
+                    <button
+                      onClick={() => {
+                        setTitleText(modSubTitle)
+                        setManualKo(modSubKo)
+                        setManualSub(modSubForeign)
+                        setManualMode(true)
+                        setModifyMode(null)
+                        handleGenerate()
+                      }}
+                      disabled={generating}
+                      style={{ width:'100%', padding:'10px', borderRadius:10, border:'none', background:generating?'#5DCAA5':'#1D9E75', color:'#fff', fontSize:13, fontWeight:700, cursor:generating?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                      {generating ? '생성 중...' : '🔄 이 자막으로 다시 만들기'}
+                    </button>
+                  </div>
+                )}
+
+                {modifyMode === 'bgm' && (
+                  <div>
+                    <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom:10 }}>
+                      {BGM_LIST.filter(b => b.id !== 'auto').map(b => (
+                        <button key={b.id} onClick={() => setSelectedBGM(b.id)}
+                          style={{ padding:'6px 12px', borderRadius:20, border:`1.5px solid ${selectedBGM===b.id?'#5DCAA5':'#E6EAE8'}`, background:selectedBGM===b.id?'#E1F5EE':'#fff', color:selectedBGM===b.id?'#0F6E56':'#6B7875', fontSize:12, fontWeight:500, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                          {b.name}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => { setModifyMode(null); handleGenerate() }}
+                      disabled={generating}
+                      style={{ width:'100%', padding:'10px', borderRadius:10, border:'none', background:generating?'#5DCAA5':'#1D9E75', color:'#fff', fontSize:13, fontWeight:700, cursor:generating?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                      {generating ? '생성 중...' : `🔄 ${BGM_LIST.find(b=>b.id===selectedBGM)?.name || 'BGM'}으로 다시 만들기`}
+                    </button>
+                  </div>
                 )}
               </div>
             )}
