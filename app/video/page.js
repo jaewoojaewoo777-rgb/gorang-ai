@@ -398,10 +398,16 @@ useEffect(() => {
         const url = URL.createObjectURL(file)
         img.onload = () => {
           URL.revokeObjectURL(url)
+          // 최대 2160px으로 리사이즈 (4K 서버 처리에 충분, 파일 크기 5MB 이하로 제한)
+          const MAX = 2160
+          let w = img.width, h = img.height
+          if (w > MAX || h > MAX) {
+            if (w > h) { h = Math.round(h * MAX / w); w = MAX }
+            else       { w = Math.round(w * MAX / h); h = MAX }
+          }
           const canvas = document.createElement('canvas')
-          canvas.width = img.width
-          canvas.height = img.height
-          canvas.getContext('2d').drawImage(img, 0, 0)
+          canvas.width = w; canvas.height = h
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h)
           canvas.toBlob((blob) => {
             if (!blob) return reject(new Error('WebP 변환 실패'))
             resolve(blob)
