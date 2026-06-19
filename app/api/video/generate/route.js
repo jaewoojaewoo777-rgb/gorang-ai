@@ -7,22 +7,11 @@ function splitText(text, count) {
   if (!text) return Array(count).fill('')
   if (count === 1) return [text.trim()]
 
-  let units = text
-    .split(/(?<=[.!?。！？])\s+/)
+  // 일본어/중국어(。！？)는 공백 없이도 분리, 한국어/영어(.!?)는 공백 필요
+  const units = text
+    .split(/(?<=[。！？])|(?<=[.!?])\s+/)
     .map(s => s.trim())
     .filter(Boolean)
-
-  if (units.length < count) {
-    const reSplit = []
-    for (const u of units) {
-      if (u.length > 20 && u.includes(',')) {
-        reSplit.push(...u.split(/,\s*/).map(s => s.trim()).filter(Boolean))
-      } else {
-        reSplit.push(u)
-      }
-    }
-    units = reSplit
-  }
 
   const res = Array(count).fill('')
   if (units.length >= count) {
@@ -30,6 +19,7 @@ function splitText(text, count) {
     for (let i = 0; i < count; i++)
       res[i] = units.slice(i * per, (i + 1) * per).join(' ').trim()
   } else {
+    // 문장 수가 사진 수보다 적으면 앞쪽 슬롯에만 배분 (단어 파편화 방지)
     for (let i = 0; i < units.length; i++) res[i] = units[i]
   }
   return res
