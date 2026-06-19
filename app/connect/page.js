@@ -13,6 +13,17 @@ function ConnectContent() {
   const [lineSaving, setLineSaving] = useState(false)
   const [lineResult, setLineResult] = useState(null)
 
+  const [taLocationId, setTaLocationId] = useState('')
+  const [taSaving, setTaSaving] = useState(false)
+  const [taResult, setTaResult] = useState(null)
+  const [taConnected, setTaConnected] = useState(null) // { locationId, locationName }
+
+  useEffect(() => {
+    fetch('/api/tripadvisor/connect').then(r => r.json()).then(d => {
+      if (d.locationId) setTaConnected(d)
+    }).catch(() => {})
+  }, [])
+
   const errorMsg = {
     login_first:      '먼저 구글 계정으로 로그인한 뒤 시도해주세요.',
     tiktok_cancelled: '틱톡 연동이 취소됐어요.',
@@ -29,6 +40,31 @@ function ConnectContent() {
       return () => clearTimeout(timer)
     }
   }, [tiktok, meta, router])
+
+  const handleTaSave = async () => {
+    if (!taLocationId.trim()) return
+    setTaSaving(true)
+    setTaResult(null)
+    try {
+      const res = await fetch('/api/tripadvisor/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ locationId: taLocationId.trim() }),
+      })
+      const data = await res.json()
+      if (data.ok) {
+        setTaResult({ ok: true, msg: `연동 완료! (${data.locationName})` })
+        setTaConnected({ locationId: taLocationId.trim(), locationName: data.locationName })
+        setTaLocationId('')
+      } else {
+        setTaResult({ ok: false, msg: data.error || '저장 실패' })
+      }
+    } catch {
+      setTaResult({ ok: false, msg: '네트워크 오류' })
+    } finally {
+      setTaSaving(false)
+    }
+  }
 
   const handleLineSave = async () => {
     if (!lineToken.trim()) return
@@ -156,6 +192,44 @@ function ConnectContent() {
       {lineResult && (
         <div style={{ padding:'10px 14px', borderRadius:10, background: lineResult.ok ? '#E1F5EE' : '#FCEBEB', fontSize:13, color: lineResult.ok ? '#085041' : '#A32D2D' }}>
           {lineResult.ok ? '✅ ' : '❌ '}{lineResult.msg}
+        </div>
+      )}
+
+      {/* TripAdvisor */}
+      <div style={{ background:'#FFF5E6', border:'1.5px solid #F5A623', borderRadius:14, padding:16 }}>
+        <div style={{ fontSize:12, fontWeight:700, color:'#7A4A00', marginBottom:8 }}>🦉 TripAdvisor 리뷰 알림</div>
+        {['✅ 새 리뷰 카카오톡 즉시 알림', '✅ 외국어 리뷰 한국어 번역 + AI 답변 초안', '✅ 악성 리뷰 자동 분류'].map(t => (
+          <div key={t} style={{ fontSize:13, color:'#5C3500', marginBottom:4 }}>{t}</div>
+        ))}
+        {taConnected && (
+          <div style={{ marginTop:8, padding:'8px 12px', background:'#FFFBF0', borderRadius:8, fontSize:12, color:'#7A4A00' }}>
+            ✅ 연동됨: <b>{taConnected.locationName}</b> (ID: {taConnected.locationId})
+          </div>
+        )}
+        <div style={{ fontSize:11, color:'#A06020', marginTop:8, lineHeight:1.6 }}>
+          TripAdvisor 장소 URL에서 숫자 ID를 확인하세요.<br />
+          예) tripadvisor.com/Restaurant_Review-<b>g294918</b>-d<b>12345678</b>-Reviews → <b>12345678</b>
+        </div>
+      </div>
+      <div style={{ display:'flex', gap:8 }}>
+        <input
+          type="text"
+          placeholder="장소 ID 입력 (예: 12345678)"
+          value={taLocationId}
+          onChange={e => setTaLocationId(e.target.value)}
+          style={{ flex:1, padding:'12px 14px', borderRadius:12, border:'1.5px solid #D0D8D4', fontSize:13, fontFamily:'Noto Sans KR, sans-serif', outline:'none' }}
+        />
+        <button
+          onClick={handleTaSave}
+          disabled={taSaving || !taLocationId.trim()}
+          style={{ padding:'12px 20px', borderRadius:12, border:'none', background: taSaving ? '#F5C842' : '#F5A623', color:'#fff', fontSize:14, fontWeight:700, cursor: taSaving ? 'not-allowed' : 'pointer', whiteSpace:'nowrap', fontFamily:'Noto Sans KR, sans-serif' }}
+        >
+          {taSaving ? '확인 중...' : '저장'}
+        </button>
+      </div>
+      {taResult && (
+        <div style={{ padding:'10px 14px', borderRadius:10, background: taResult.ok ? '#E1F5EE' : '#FCEBEB', fontSize:13, color: taResult.ok ? '#085041' : '#A32D2D' }}>
+          {taResult.ok ? '✅ ' : '❌ '}{taResult.msg}
         </div>
       )}
 

@@ -19,6 +19,8 @@ export default function ReviewPage() {
   const [mode, setMode] = useState('approve') // approve | auto
   const [polling, setPolling] = useState(false)
   const [pollResult, setPollResult] = useState(null)
+  const [taPolling, setTaPolling] = useState(false)
+  const [taPollResult, setTaPollResult] = useState(null)
 
   useEffect(() => {
     fetch('/api/reviews')
@@ -46,6 +48,27 @@ export default function ReviewPage() {
       setPollResult('❌ 네트워크 오류')
     }
     setPolling(false)
+  }
+
+  const handleTaPoll = async () => {
+    setTaPolling(true)
+    setTaPollResult(null)
+    try {
+      const res = await fetch('/api/tripadvisor/poll', { method: 'POST' })
+      const data = await res.json()
+      if (data.success) {
+        setTaPollResult(data.newReviews > 0 ? `✅ 새 리뷰 ${data.newReviews}개 감지 → 카톡 발송` : '✅ 새 리뷰 없음')
+        if (data.newReviews > 0) {
+          const refreshed = await fetch('/api/reviews').then(r => r.json())
+          setReviews(refreshed.reviews || [])
+        }
+      } else {
+        setTaPollResult('❌ ' + (data.error || '오류'))
+      }
+    } catch {
+      setTaPollResult('❌ 네트워크 오류')
+    }
+    setTaPolling(false)
   }
 
   const filtered = reviews.filter(r => {
@@ -157,7 +180,12 @@ export default function ReviewPage() {
             {polling ? '확인 중...' : '🔔 새 리뷰 확인'}
           </button>
         </div>
-        {pollResult && <div style={{ fontSize:12, color: pollResult.startsWith('✅')?'#0F6E56':'#E53E3E', background: pollResult.startsWith('✅')?'#E1F5EE':'#FFF5F5', padding:'6px 12px', borderRadius:8, marginBottom:8 }}>{pollResult}</div>}
+        {pollResult && <div style={{ fontSize:12, color: pollResult.startsWith('✅')?'#0F6E56':'#E53E3E', background: pollResult.startsWith('✅')?'#E1F5EE':'#FFF5F5', padding:'6px 12px', borderRadius:8, marginBottom:4 }}>{pollResult}</div>}
+        <button onClick={handleTaPoll} disabled={taPolling}
+          style={{ marginBottom:6, padding:'6px 14px', borderRadius:20, border:'1.5px solid #F5A623', background: taPolling?'#FFF5E6':'#F5A623', color: taPolling?'#7A4A00':'#fff', fontSize:12, fontWeight:600, cursor: taPolling?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+          {taPolling ? '확인 중...' : '🦉 트립어드바이저 새 리뷰 확인'}
+        </button>
+        {taPollResult && <div style={{ fontSize:12, color: taPollResult.startsWith('✅')?'#0F6E56':'#E53E3E', background: taPollResult.startsWith('✅')?'#E1F5EE':'#FFF5F5', padding:'6px 12px', borderRadius:8, marginBottom:4 }}>{taPollResult}</div>}
         <div style={{ display:'flex', gap:5 }}>
           {[{v:'all',l:'전체'},{v:'wait',l:'대기'},{v:'done',l:'완료'}].map(f => (
             <button key={f.v} onClick={() => setFilter(f.v)}

@@ -69,6 +69,12 @@ CREATE TABLE video_uploads (
 -- ALTER TABLE video_saves ENABLE ROW LEVEL SECURITY;
 -- CREATE POLICY "service_role_saves" ON video_saves FOR ALL USING (true);
 
+-- ── TripAdvisor 컬럼 추가 ───────────────────────────────────
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS tripadvisor_location_id TEXT;
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS tripadvisor_location_name TEXT;
+-- reviews 테이블에 출처(source) 컬럼 추가 (리뷰 ID는 ta_ 접두사로 구분)
+-- ALTER TABLE reviews ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'google';
+
 -- ── Meta (Instagram + Facebook) 컬럼 추가 ────────────────────
 -- ALTER TABLE users ADD COLUMN IF NOT EXISTS meta_access_token TEXT;
 -- ALTER TABLE users ADD COLUMN IF NOT EXISTS meta_token_expiry TIMESTAMPTZ;
