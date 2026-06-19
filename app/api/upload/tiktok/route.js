@@ -3,7 +3,6 @@ import { getSession } from '../../../../lib/session'
 import { supabaseAdmin } from '../../../../lib/db'
 import {
   uploadTikTokVideo,
-  queryCreatorInfo,
   refreshTikTokToken,
   getTikTokPostStatus,
 } from '../../../../lib/tiktok'
@@ -117,8 +116,6 @@ export async function POST(request) {
         .eq('id', session.userId)
     }
 
-    await queryCreatorInfo(accessToken)
-
     const reqStart = Date.now()
     let videoBuffer
     if (videoUrl) {
@@ -153,32 +150,39 @@ export async function POST(request) {
       polls++
       const st = await getTikTokPostStatus(accessToken, publish_id)
       status = st.status || status
-      if (status === 'PUBLISH_COMPLETE') break
+      if (status === 'PUBLISH_COMPLETE' || status === 'SEND_TO_USER_INBOX') break
       if (status === 'FAILED') {
         failReason = st.fail_reason || 'unknown'
         break
       }
     }
 
+    // Inbox 업로드는 SEND_TO_USER_INBOX가 성공(드래프트 전송 완료)
+    const success = status === 'PUBLISH_COMPLETE' || status === 'SEND_TO_USER_INBOX'
+
     await supabaseAdmin.from('video_uploads').insert({
       user_id: session.userId,
       title: caption,
       caption_en: caption,
       platforms: ['tiktok'],
-      status:
-        status === 'PUBLISH_COMPLETE' ? 'done' : status === 'FAILED' ? 'failed' : 'processing',
+      status: success ? 'done' : status === 'FAILED' ? 'failed' : 'processing',
       tiktok_publish_id: publish_id,
     })
 
-    // ✅ PUBLISH_COMPLETE 됐을 때만 streak 업데이트
-    if (status === 'PUBLISH_COMPLETE') {
+    if (success) {
       await updateStreak(session.userId)
     }
 
     const metaStr = ` | 원본fps:${srcMeta ? srcMeta.fps : '?'} 길이:${srcMeta ? srcMeta.duration : '?'}s 폴링${polls}회`
 
-    if (status === 'PUBLISH_COMPLETE') {
-      return NextResponse.json({ ok: true, tiktokPublishId: publish_id, status })
+    if (success) {
+      return NextResponse.json({
+        ok: true,
+        tiktokPublishId: publish_id,
+        status,
+        draft: true,
+        note: '틱톡 앱 알림함으로 영상이 전송됐어요. 틱톡 앱에서 게시를 완료해주세요.',
+      })
     }
     if (status === 'FAILED') {
       return NextResponse.json({
@@ -191,7 +195,7 @@ export async function POST(request) {
     return NextResponse.json({
       ok: false,
       error: '아직 처리 중',
-      detail: `틱톡 상태: ${status} — 몇 분 뒤 틱톡 앱에서 확인해주세요${metaStr}`,
+      detail: `틱톡 상태: ${status} — 몇 분 뒤 틱톡 앱 알림함에서 확인해주세요${metaStr}`,
       tiktokStatus: status,
     })
   } catch (err) {

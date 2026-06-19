@@ -906,26 +906,6 @@ ${manualSub}`.trim()
           </div>
         )
       })}
-      {/* BGM 변경 후 재생성 */}
-      {(videos.portrait || videos.landscape) && (
-        <div style={{ width:'100%', marginTop:16, padding:'14px 16px', background:'#F4F6F5', borderRadius:14 }}>
-          <div style={{ fontSize:12, fontWeight:700, color:'#6B7875', marginBottom:10 }}>🎵 BGM만 바꿔서 다시 만들기</div>
-          <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom:10 }}>
-            {BGM_LIST.filter(b => b.id !== 'none' && b.id !== 'auto').map(b => (
-              <button key={b.id} onClick={() => setSelectedBGM(b.id)}
-                style={{ padding:'6px 12px', borderRadius:20, border:`1.5px solid ${selectedBGM===b.id?'#5DCAA5':'#E6EAE8'}`, background:selectedBGM===b.id?'#E1F5EE':'#fff', color:selectedBGM===b.id?'#0F6E56':'#6B7875', fontSize:12, fontWeight:500, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                {b.name}
-              </button>
-            ))}
-          </div>
-          <button
-            onClick={() => handleGenerate()}
-            disabled={generating}
-            style={{ width:'100%', padding:'10px', borderRadius:10, border:'none', background: generating ? '#5DCAA5' : '#1D9E75', color:'#fff', fontSize:13, fontWeight:700, cursor: generating ? 'not-allowed' : 'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-            {generating ? '생성 중...' : `${BGM_LIST.find(b=>b.id===selectedBGM)?.name || 'BGM'} 으로 재생성`}
-          </button>
-        </div>
-      )}
       <PrimaryBtn onClick={reset} style={{ marginTop:16, width:'100%' }}>+ 새 영상 만들기</PrimaryBtn>
       <GhostBtn onClick={() => router.push('/home')} style={{ marginTop:8, width:'100%' }}>홈으로</GhostBtn>
     </div>
