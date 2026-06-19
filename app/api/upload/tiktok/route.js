@@ -132,9 +132,14 @@ export async function POST(request) {
       videoBuffer = Buffer.from(arrayBuffer)
     }
 
-    const conv = await convertToMp4(videoBuffer)
-    videoBuffer = conv.buffer
-    const srcMeta = conv.meta
+    // 우리 서버(Supabase) mp4는 이미 TikTok 호환(h264/aac/CFR) → Cloudinary 변환 생략.
+    // 변환은 시간이 오래 걸려 Vercel 60초 제한 초과(504)의 주원인이므로 직접 업로드 파일에만 적용.
+    let srcMeta = null
+    if (!videoUrl) {
+      const conv = await convertToMp4(videoBuffer)
+      videoBuffer = conv.buffer
+      srcMeta = conv.meta
+    }
 
     // Direct Post 전 creator_info 조회 → privacy/상호작용 설정을 계정 허용값에 맞춤
     const creatorInfo = await queryCreatorInfo(accessToken).catch(() => ({}))
@@ -147,10 +152,12 @@ export async function POST(request) {
       creatorInfo,
     })
 
+    // 영상 바이트 전송(PUT)은 완료됨. TikTok은 비동기로 처리/게시하므로
+    // 짧게만 폴링하고(60초 제한 회피) 처리 중이면 성공(전송 완료)으로 응답.
     let status = 'PROCESSING'
     let failReason = null
     let polls = 0
-    while (Date.now() - reqStart < 52000) {
+    while (Date.now() - reqStart < 40000) {
       await new Promise((r) => setTimeout(r, 3000))
       polls++
       const st = await getTikTokPostStatus(accessToken, publish_id)
@@ -200,11 +207,13 @@ export async function POST(request) {
         tiktokStatus: status,
       })
     }
+    // 영상 바이트 전송은 끝났고 TikTok이 비동기 처리 중 → 성공으로 처리 (1~2분 뒤 게시됨)
     return NextResponse.json({
-      ok: false,
-      error: '아직 처리 중',
-      detail: `틱톡 상태: ${status} — 몇 분 뒤 틱톡 앱 알림함에서 확인해주세요${metaStr}`,
-      tiktokStatus: status,
+      ok: true,
+      tiktokPublishId: publish_id,
+      status,
+      processing: true,
+      note: `틱톡에 전송 완료됐어요. 1~2분 뒤 틱톡에 게시돼요${metaStr}`,
     })
   } catch (err) {
     console.error('틱톡 업로드 오류:', err)
