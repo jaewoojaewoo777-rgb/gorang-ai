@@ -17,10 +17,14 @@ function ConnectContent() {
   const [taSaving, setTaSaving] = useState(false)
   const [taResult, setTaResult] = useState(null)
   const [taConnected, setTaConnected] = useState(null) // { locationId, locationName }
+  const [googleConnected, setGoogleConnected] = useState(false)
 
   useEffect(() => {
     fetch('/api/tripadvisor/connect').then(r => r.json()).then(d => {
       if (d.locationId) setTaConnected(d)
+    }).catch(() => {})
+    fetch('/api/shop').then(r => r.ok ? r.json() : null).then(d => {
+      if (d?.google_connected) setGoogleConnected(true)
     }).catch(() => {})
   }, [])
 
@@ -135,12 +139,26 @@ function ConnectContent() {
         {['✅ 유튜브 쇼츠/일반 자동 업로드', '✅ 구글맵스 리뷰 AI 자동 답변'].map(t => (
           <div key={t} style={{ fontSize:13, color:'#085041', marginBottom:4 }}>{t}</div>
         ))}
+        {googleConnected && (
+          <div style={{ marginTop:8, padding:'6px 12px', background:'#C8EFE3', borderRadius:8, fontSize:12, color:'#0F6E56', fontWeight:700 }}>
+            ✅ 구글 연동됨 — YouTube · 구글맵 사용 가능
+          </div>
+        )}
       </div>
-      <a href="/api/auth/google" style={{ textDecoration:'none' }}>
-        <button style={{ width:'100%', padding:14, borderRadius:14, border:'none', background:'#1D9E75', color:'#fff', fontSize:15, fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-          🔵 구글 계정으로 연동하기
+      {googleConnected ? (
+        <button
+          onClick={() => router.push('/home')}
+          style={{ width:'100%', padding:14, borderRadius:14, border:'none', background:'#5DCAA5', color:'#fff', fontSize:15, fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}
+        >
+          ✅ 구글 연동됨 — 홈으로 가기 →
         </button>
-      </a>
+      ) : (
+        <a href="/api/auth/google" style={{ textDecoration:'none' }}>
+          <button style={{ width:'100%', padding:14, borderRadius:14, border:'none', background:'#1D9E75', color:'#fff', fontSize:15, fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+            🔵 구글 계정으로 연동하기
+          </button>
+        </a>
+      )}
 
       {/* 틱톡 */}
       <a href="/api/auth/tiktok" style={{ textDecoration:'none' }}>

@@ -1,6 +1,21 @@
+'use client'
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 export default function SplashPage() {
+  const router = useRouter()
+
+  useEffect(() => {
+    fetch('/api/shop')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d?.shop_name?.trim()) router.replace('/home')
+        else if (d?.email) router.replace('/register')
+      })
+      .catch(() => {})
+  }, [])
+
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', background:'#1D9E75', padding:'40px 28px' }}>
       <div style={{ width:72, height:72, borderRadius:22, background:'rgba(255,255,255,.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:36, marginBottom:18 }}>🌿</div>

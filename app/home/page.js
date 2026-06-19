@@ -21,11 +21,12 @@ export default function HomePage() {
     .map(([k,v]) => ({ en:'🇺🇸', zh:'🇨🇳', ko:'🇰🇷', ja:'🇯🇵' }[k] + ` ${v}건`).join(' · '))
 
   // 실제 연동 상태 (하드코딩 X — /api/shop 값으로 판별)
-  const gbConnected = !!(shop.gbp_location_id || shop.gbp_account_id)
-  const ttConnected = !!shop.tiktok_open_id
-  const igConnected = !!shop.instagram_user_id
-  const taConnected = !!shop.tripadvisor_location_id
-  const anyConnected = gbConnected || ttConnected || taConnected
+  const ytConnected  = !!shop.google_connected                        // 구글 OAuth 완료 = YouTube 사용 가능
+  const gbConnected  = !!(shop.gbp_location_id || shop.gbp_account_id) // GBP 위치까지 설정된 경우
+  const ttConnected  = !!shop.tiktok_open_id
+  const igConnected  = !!shop.instagram_user_id
+  const taConnected  = !!shop.tripadvisor_location_id
+  const anyConnected = ytConnected || gbConnected || ttConnected || igConnected || taConnected
 
   const channels = [
     {
@@ -35,8 +36,8 @@ export default function HomePage() {
     },
     {
       icon: '▶️', name: 'YouTube',
-      sub: gbConnected ? '쇼츠 자동 업로드' : '구글 연동 시 자동 사용',
-      connected: gbConnected, review: false,
+      sub: ytConnected ? '쇼츠 자동 업로드' : '구글 연동 시 자동 사용',
+      connected: ytConnected, review: false,
     },
     {
       icon: '📸', name: 'Instagram',
@@ -119,7 +120,7 @@ export default function HomePage() {
         </Card>
 
         {anyConnected
-          ? <PrimaryBtn onClick={() => router.push('/video')}>+ 새 영상 만들기</PrimaryBtn>
+          ? <PrimaryBtn onClick={() => router.push('/video')}>영상 만들러 가기 →</PrimaryBtn>
           : <div style={{ border:'1.5px solid #E6EAE8', borderRadius:14, padding:'16px', textAlign:'center' }}>
               <div style={{ fontSize:14, fontWeight:700, color:'#1A2421', marginBottom:6 }}>🔗 먼저 채널을 연동해주세요</div>
               <div style={{ fontSize:12, color:'#6B7875', marginBottom:12, lineHeight:1.6 }}>
