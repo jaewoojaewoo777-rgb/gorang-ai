@@ -3,6 +3,7 @@ import { getSession } from '../../../../lib/session'
 import { supabaseAdmin } from '../../../../lib/db'
 import {
   uploadTikTokVideo,
+  queryCreatorInfo,
   refreshTikTokToken,
   getTikTokPostStatus,
 } from '../../../../lib/tiktok'
@@ -135,11 +136,15 @@ export async function POST(request) {
     videoBuffer = conv.buffer
     const srcMeta = conv.meta
 
+    // Direct Post 전 creator_info 조회 → privacy/상호작용 설정을 계정 허용값에 맞춤
+    const creatorInfo = await queryCreatorInfo(accessToken).catch(() => ({}))
+
     const { publish_id } = await uploadTikTokVideo({
       accessToken,
       caption,
       videoBuffer,
       mimeType: 'video/mp4',
+      creatorInfo,
     })
 
     let status = 'PROCESSING'
@@ -176,12 +181,15 @@ export async function POST(request) {
     const metaStr = ` | 원본fps:${srcMeta ? srcMeta.fps : '?'} 길이:${srcMeta ? srcMeta.duration : '?'}s 폴링${polls}회`
 
     if (success) {
+      const draft = status === 'SEND_TO_USER_INBOX'
       return NextResponse.json({
         ok: true,
         tiktokPublishId: publish_id,
         status,
-        draft: true,
-        note: '틱톡 앱 알림함으로 영상이 전송됐어요. 틱톡 앱에서 게시를 완료해주세요.',
+        draft,
+        note: draft
+          ? '틱톡 앱 알림함으로 영상이 전송됐어요. 틱톡 앱에서 게시를 완료해주세요.'
+          : '틱톡에 게시됐어요.',
       })
     }
     if (status === 'FAILED') {
