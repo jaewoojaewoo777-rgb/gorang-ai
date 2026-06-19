@@ -34,6 +34,8 @@ const PLATFORMS = [
   { id: 'youtube_shorts', icon: '▶️', name: 'YouTube Shorts', ratio: 'portrait',  ratioLabel: '세로 9:16' },
   { id: 'instagram',      icon: '📸', name: 'Instagram 릴스',  ratio: 'portrait',  ratioLabel: '세로 9:16' },
   { id: 'tiktok',         icon: '🎵', name: 'TikTok',          ratio: 'portrait',  ratioLabel: '세로 9:16' },
+  { id: 'facebook',       icon: '👥', name: 'Facebook',         ratio: 'portrait',  ratioLabel: '세로 9:16' },
+  { id: 'line',           icon: '💚', name: 'LINE',             ratio: 'portrait',  ratioLabel: '세로 9:16' },
   { id: 'youtube',        icon: '📺', name: 'YouTube 일반',     ratio: 'landscape', ratioLabel: '가로 16:9' },
   { id: 'xiaohongshu',   icon: '📕', name: '샤오홍수 小红书',   ratio: 'portrait',  ratioLabel: '세로 9:16' },
 ]
@@ -295,6 +297,14 @@ useEffect(() => {
 제목힌트: ${title}
 내용힌트: ${baseKo}
 {"caption":"캡션(이모지+줄바꿈포함,150자이내)","hashtags":["해시태그1","해시태그2"]}`,
+      facebook: `제주도 소상공인 Facebook 페이지용 캡션을 만들어줘. 동남아·서양 관광객을 타깃으로, 영어+한국어 혼용 가능. JSON으로만 응답. 다른 텍스트 없이 JSON만.
+제목힌트: ${title}
+내용힌트: ${baseKo}
+{"caption":"캡션(이모지+줄바꿈포함,200자이내,영어위주)","hashtags":["#Jeju","#Korea","#Travel"]}`,
+      line: `제주도 소상공인의 LINE Official Account 팔로워(일본인 관광객)용 메시지를 일본어로 만들어줘. 자연스럽고 친근한 일본어로. JSON으로만 응답. 다른 텍스트 없이 JSON만.
+제목힌트: ${title}
+내용힌트: ${baseKo}
+{"caption":"메시지(일본어,이모지포함,200자이내)","hashtags":["#済州島","#韓国旅行","#カフェ"]}`,
       tiktok: `제주도 소상공인 틱톡용 캡션을 만들어줘. 짧고 트렌디하게. JSON으로만 응답. 다른 텍스트 없이 JSON만.
 제목힌트: ${title}
 내용힌트: ${baseKo}
@@ -513,10 +523,6 @@ useEffect(() => {
       const videoData = videos[platform.ratio]
       const pc = platformCaptions[pid] || {}
 
-      if (pid === 'instagram') {
-        results.push({ platform: pid, status: '⏳ 인스타그램 자동 업로드 준비 중' }); continue
-      }
-
       // 샤오홍수: 캡션 클립보드 복사 + 영상 네이티브 공유 (iOS 공유시트 → 샤오홍수 작성창에 영상 첨부)
       if (pid === 'xiaohongshu') {
         const pc = platformCaptions[pid] || {}
@@ -589,7 +595,7 @@ useEffect(() => {
       let uploadCaption = ''
       if (pid === 'tiktok') {
         uploadCaption = [pc.caption, ...(pc.hashtags || [])].filter(Boolean).join(' ')
-      } else if (pid === 'instagram') {
+      } else if (pid === 'instagram' || pid === 'facebook' || pid === 'line') {
         uploadCaption = [pc.caption, (pc.hashtags || []).join(' ')].filter(Boolean).join('\n\n')
       } else {
         const tags = (pc.tags || []).map(t => `#${t}`).join(' ')
@@ -606,9 +612,19 @@ useEffect(() => {
       form.append('title', uploadTitle)
       form.append('isShorts', isShorts ? 'true' : 'false')
       if (pc.tags) form.append('tags', JSON.stringify(pc.tags))
+      // LINE: 첫 번째 사진을 영상 미리보기 이미지로 사용
+      if (pid === 'line' && previews?.[0]) {
+        form.append('previewImageUrl', previews[0])
+      }
 
       try {
-        const endpoint = pid === 'tiktok' ? '/api/upload/tiktok' : '/api/upload/youtube'
+        const UPLOAD_ENDPOINTS = {
+          tiktok: '/api/upload/tiktok',
+          instagram: '/api/upload/instagram',
+          facebook: '/api/upload/facebook',
+          line: '/api/upload/line',
+        }
+        const endpoint = UPLOAD_ENDPOINTS[pid] || '/api/upload/youtube'
 
         // 모바일은 업로드가 느려 타임아웃이 잘 남 → 5분까지 기다림
         const controller = new AbortController()
@@ -637,10 +653,20 @@ useEffect(() => {
 
         // 틱톡 업로드는 비공개(SELF_ONLY)라 '영상별' 공개 URL은 없지만,
         // '확인하기'를 누르면 틱톡 앱/웹이 열려 내 프로필에서 바로 확인 가능
-        const url = pid === 'tiktok'
-          ? (data.ok ? 'https://www.tiktok.com/' : undefined)
-          : data.youtubeUrl
-        const note = (pid === 'tiktok' && data.ok) ? '내 프로필 > 영상 탭에서 확인하세요' : undefined
+        const urlMap = {
+          tiktok: data.ok ? 'https://www.tiktok.com/' : undefined,
+          instagram: data.ok ? 'https://www.instagram.com/' : undefined,
+          facebook: data.facebookUrl || undefined,
+          line: undefined,
+        }
+        const noteMap = {
+          tiktok: data.ok ? '내 프로필 > 영상 탭에서 확인하세요' : undefined,
+          instagram: data.ok ? '내 피드에서 확인하세요' : undefined,
+          facebook: data.ok ? (data.pageName ? `${data.pageName} 페이지에서 확인하세요` : '페이지에서 확인하세요') : undefined,
+          line: data.ok ? 'LINE 팔로워에게 영상이 발송됐어요' : undefined,
+        }
+        const url = urlMap[pid] ?? data.youtubeUrl
+        const note = noteMap[pid]
         results.push({
           platform: pid,
           status: data.ok ? '✅ 업로드 완료' : `❌ 실패 (${data.detail || data.error || ''})`,

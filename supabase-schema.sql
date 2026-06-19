@@ -56,6 +56,18 @@ CREATE TABLE video_uploads (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- ── Meta (Instagram + Facebook) 컬럼 추가 ────────────────────
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS meta_access_token TEXT;
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS meta_token_expiry TIMESTAMPTZ;
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS instagram_user_id TEXT;
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS fb_page_id TEXT;
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS fb_page_name TEXT;
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS fb_page_access_token TEXT;
+
+-- ── LINE Official Account 컬럼 추가 ──────────────────────────
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS line_channel_access_token TEXT;
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS line_bot_name TEXT;
+
 -- 4. Row Level Security 설정 (보안)
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
