@@ -54,7 +54,7 @@ export default function HomePage() {
       sub: '앱 심사 중...', connected: false, review: true,
     },
     {
-      {
+      
       icon: '🎵', name: 'TikTok',
       sub: tiktokConnected ? '쇼츠 자동 업로드 가능' : '탭해서 연동하기',
       connected: tiktokConnected, review: false, href: '/connect?flow=tiktok',
