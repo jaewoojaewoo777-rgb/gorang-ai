@@ -78,7 +78,7 @@ export default function SettingsPage() {
           <span style={{ color:'#B0BAB6' }}>›</span>
         </button>
 
-        <button onClick={() => { if(confirm('로그아웃 하시겠어요?')) router.push('/') }}
+        <button onClick={() => { if(confirm('로그아웃 하시겠어요?')) window.location.href = '/api/auth/logout' }}
           style={{ width:'100%', padding:14, borderRadius:14, border:'1.5px solid #E6EAE8', background:'#fff', color:'#6B7875', fontSize:14, fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
           로그아웃
         </button>
