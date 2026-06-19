@@ -9,7 +9,7 @@ export default function HomePage() {
   const [reviews, setReviews] = useState([])
 
   useEffect(() => {
-    fetch('/api/shop').then(r => r.json()).then(setShop).catch(() => {})
+    fetch('/api/shop', { cache: 'no-store' }).then(r => r.json()).then(setShop).catch(() => {})
     fetch('/api/reviews').then(r => r.json()).then(d => setReviews(d.reviews || [])).catch(() => {})
   }, [])
 
