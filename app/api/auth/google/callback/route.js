@@ -1,18 +1,11 @@
-import { getIronSession } from 'iron-session'
+import { sealData } from 'iron-session'
 import { NextResponse } from 'next/server'
 import { getOAuthClient, getGBPAccounts, getGBPLocations } from '../../../../../lib/google'
 import { supabaseAdmin } from '../../../../../lib/db'
 
-const SESSION_OPTIONS = {
-  password: process.env.SESSION_SECRET || 'gorang-ai-default-secret-change-me-32ch',
-  cookieName: 'gorang_session',
-  cookieOptions: {
-    secure: process.env.NODE_ENV === 'production',
-    httpOnly: true,
-    sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 30,
-  },
-}
+const SESSION_PASSWORD = process.env.SESSION_SECRET || 'gorang-ai-default-secret-change-me-32ch'
+const COOKIE_NAME = 'gorang_session'
+const MAX_AGE = 60 * 60 * 24 * 30 // 30일
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url)
@@ -95,14 +88,22 @@ export async function GET(request) {
       .single()
 
     const redirectTo = profile?.shop_name?.trim() ? '/home' : '/register'
-    const response = NextResponse.redirect(new URL(redirectTo, request.url))
 
-    // 6. 세션 쿠키를 리다이렉트 응답에 직접 기록
-    //    (cookies() 패턴은 Route Handler redirect에서 쿠키가 누락됨 → 이 패턴으로 수정)
-    const session = await getIronSession(request, response, SESSION_OPTIONS)
-    session.userId = user.id
-    session.googleId = googleId
-    await session.save()
+    // 6. iron-session 형식으로 세션 데이터 암호화 후 쿠키를 리다이렉트 응답에 직접 설정
+    //    NextResponse.redirect() + response.cookies.set() 조합이 Next.js 14에서 가장 확실한 방법
+    const sealed = await sealData(
+      { userId: user.id, googleId },
+      { password: SESSION_PASSWORD, ttl: MAX_AGE }
+    )
+
+    const response = NextResponse.redirect(new URL(redirectTo, request.url))
+    response.cookies.set(COOKIE_NAME, sealed, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: MAX_AGE,
+      path: '/',
+    })
 
     return response
 
