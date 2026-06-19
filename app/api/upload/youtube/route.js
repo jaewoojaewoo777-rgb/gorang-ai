@@ -48,36 +48,28 @@ export async function POST(request) {
       }).eq('id', session.userId)
     }
 
-    // 파일 버퍼 변환
-    let videoBuffer, mimeType
-    if (videoUrl) {
-      // 서버가 Supabase URL에서 직접 다운로드 → 모바일은 텍스트만 보내면 됨
-      console.log('[YouTube] URL에서 영상 다운로드:', videoUrl)
-      const videoRes = await fetch(videoUrl)
-      if (!videoRes.ok) {
-        return NextResponse.json({ error: '영상 다운로드 실패', detail: `status ${videoRes.status}` }, { status: 500 })
-      }
-      const arrayBuffer = await videoRes.arrayBuffer()
-      videoBuffer = Buffer.from(arrayBuffer)
-      mimeType = videoRes.headers.get('content-type') || 'video/mp4'
-    } else {
+    // videoUrl이 있으면 버퍼링 없이 URL 직접 전달 (resumable streaming)
+    // 없으면 직접 업로드된 파일을 버퍼로 변환
+    let videoBuffer = null
+    let mimeType = 'video/mp4'
+    if (!videoUrl) {
+      console.log('[YouTube] 파일 버퍼 변환 중...')
       const arrayBuffer = await file.arrayBuffer()
       videoBuffer = Buffer.from(arrayBuffer)
       mimeType = file.type || 'video/mp4'
     }
 
     // Shorts 제목에 #Shorts 추가
-    const finalTitle = isShorts
-      ? `${title} #Shorts`
-      : title
+    const finalTitle = isShorts ? `${title} #Shorts` : title
 
-    // YouTube 업로드
-    console.log('[YouTube] 업로드 시작:', finalTitle)
+    // YouTube Resumable Upload (버퍼 없이 스트리밍)
+    console.log('[YouTube] 업로드 시작:', finalTitle, videoUrl ? '(URL 스트리밍)' : '(파일 버퍼)')
     const ytResult = await uploadYouTubeVideo({
       accessToken,
       title: finalTitle || `${user.shop_name} - 고랑AI`,
       description: caption,
       videoBuffer,
+      videoUrl: videoUrl || null,
       mimeType,
       isShorts,
     })
