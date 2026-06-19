@@ -66,7 +66,7 @@ export async function GET(request) {
     session.tiktokState = null
     await session.save()
 
-    return NextResponse.redirect(new URL('/connect?tiktok=connected', request.url))
+    return NextResponse.redirect(new URL('/home', request.url))
   } catch (err) {
     console.error('틱톡 OAuth 오류:', err)
     return NextResponse.redirect(new URL('/connect?error=tiktok_failed', request.url))
