@@ -41,13 +41,13 @@ const PLATFORMS = [
 ]
 
 const TITLE_FONT_OPTIONS = [
-  { id: 'GowunBatang',    label: '고운바탕',    desc: '고급 명조체 (기본)',  preview: '고랑 Gorang' },
-  { id: 'BlackHanSans',   label: '블랙한산스',  desc: '굵고 임팩트 강한',   preview: '고랑 Gorang' },
-  { id: 'Pretendard',     label: '프리텐다드',  desc: '세련된 모던 산세리프', preview: '고랑 Gorang' },
-  { id: 'DoHyeon',        label: '도현',        desc: '깔끔 고딕',           preview: '고랑 Gorang' },
-  { id: 'Jua',            label: '주아',        desc: '귀엽고 둥근 고딕',    preview: '고랑 Gorang' },
-  { id: 'Gaegu',          label: '개구',        desc: '손글씨 느낌',         preview: '고랑 Gorang' },
-  { id: 'NanumPen',       label: '나눔펜',      desc: '캐주얼 손글씨',       preview: '고랑 Gorang' },
+  { id: 'GowunBatang',  label: '고랑 Gorang', desc: '고운바탕 — 고급 명조체 (기본)',   css: "'Gowun Batang', serif" },
+  { id: 'BlackHanSans', label: '고랑 Gorang', desc: '블랙한산스 — 굵고 임팩트 강한',  css: "'Black Han Sans', sans-serif" },
+  { id: 'Pretendard',   label: '고랑 Gorang', desc: '프리텐다드 — 세련된 모던',        css: "'Pretendard', sans-serif" },
+  { id: 'DoHyeon',      label: '고랑 Gorang', desc: '도현 — 깔끔 고딕',               css: "'Do Hyeon', sans-serif" },
+  { id: 'Jua',          label: '고랑 Gorang', desc: '주아 — 귀엽고 둥근 고딕',        css: "'Jua', sans-serif" },
+  { id: 'Gaegu',        label: '고랑 Gorang', desc: '개구 — 손글씨 느낌',             css: "'Gaegu', cursive" },
+  { id: 'NanumPen',     label: '고랑 Gorang', desc: '나눔펜 — 캐주얼 손글씨',         css: "'Nanum Pen Script', cursive" },
 ]
 
 const TONE_OPTIONS = [
@@ -515,6 +515,26 @@ useEffect(() => {
     setGenerating(false)
   }
 
+  const handleVideoSave = async (videoUrl, videoType) => {
+    try {
+      const res = await fetch(videoUrl)
+      const blob = await res.blob()
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = `gorang-${videoType}-${Date.now()}.mp4`
+      a.click()
+      URL.revokeObjectURL(a.href)
+      // 저장 기록
+      await fetch('/api/video/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ videoUrl, videoType, title: titleText || '' }),
+      })
+    } catch (e) {
+      console.error('저장 실패', e)
+    }
+  }
+
   const handleUpload = async () => {
     setUploading(true)
     const results = []
@@ -874,6 +894,26 @@ ${manualSub}`.trim()
           </div>
         )
       })}
+      {/* BGM 변경 후 재생성 */}
+      {(videos.portrait || videos.landscape) && (
+        <div style={{ width:'100%', marginTop:16, padding:'14px 16px', background:'#F4F6F5', borderRadius:14 }}>
+          <div style={{ fontSize:12, fontWeight:700, color:'#6B7875', marginBottom:10 }}>🎵 BGM만 바꿔서 다시 만들기</div>
+          <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom:10 }}>
+            {BGM_LIST.filter(b => b.id !== 'none' && b.id !== 'auto').map(b => (
+              <button key={b.id} onClick={() => setSelectedBGM(b.id)}
+                style={{ padding:'6px 12px', borderRadius:20, border:`1.5px solid ${selectedBGM===b.id?'#5DCAA5':'#E6EAE8'}`, background:selectedBGM===b.id?'#E1F5EE':'#fff', color:selectedBGM===b.id?'#0F6E56':'#6B7875', fontSize:12, fontWeight:500, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                {b.name}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => handleGenerate()}
+            disabled={generating}
+            style={{ width:'100%', padding:'10px', borderRadius:10, border:'none', background: generating ? '#5DCAA5' : '#1D9E75', color:'#fff', fontSize:13, fontWeight:700, cursor: generating ? 'not-allowed' : 'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+            {generating ? '생성 중...' : `${BGM_LIST.find(b=>b.id===selectedBGM)?.name || 'BGM'} 으로 재생성`}
+          </button>
+        </div>
+      )}
       <PrimaryBtn onClick={reset} style={{ marginTop:16, width:'100%' }}>+ 새 영상 만들기</PrimaryBtn>
       <GhostBtn onClick={() => router.push('/home')} style={{ marginTop:8, width:'100%' }}>홈으로</GhostBtn>
     </div>
@@ -1132,12 +1172,12 @@ ${manualSub}`.trim()
                 {TITLE_FONT_OPTIONS.map(f => (
                   <button key={f.id} onClick={() => setTitleFont(f.id)}
                     title={f.desc}
-                    style={{ padding:'5px 10px', borderRadius:16, border:`1.5px solid ${titleFont===f.id?'#5DCAA5':'#E6EAE8'}`, background:titleFont===f.id?'#E1F5EE':'#fff', color:titleFont===f.id?'#0F6E56':'#6B7875', fontSize:11, fontWeight:titleFont===f.id?700:400, cursor:'pointer' }}>
+                    style={{ padding:'6px 12px', borderRadius:16, border:`1.5px solid ${titleFont===f.id?'#5DCAA5':'#E6EAE8'}`, background:titleFont===f.id?'#E1F5EE':'#fff', color:titleFont===f.id?'#0F6E56':'#3A4744', fontSize:15, fontWeight:titleFont===f.id?700:400, cursor:'pointer', fontFamily:f.css, letterSpacing:0 }}>
                     {f.label}
                   </button>
                 ))}
               </div>
-              <div style={{ fontSize:10, color:'#B0BAB6', marginTop:4 }}>{TITLE_FONT_OPTIONS.find(f=>f.id===titleFont)?.desc}</div>
+              <div style={{ fontSize:11, color:'#8BA89C', marginTop:4 }}>{TITLE_FONT_OPTIONS.find(f=>f.id===titleFont)?.desc}</div>
             </div>
             <div style={{ fontSize:12, fontWeight:600, color:'#1A2421', marginBottom:6 }}>🇰🇷 설명글 (하단 자막)</div>
             <textarea
@@ -1204,7 +1244,7 @@ ${manualSub}`.trim()
                             </button>
                           ))}
                         </div>
-                        <div style={{ fontSize:10, color:'#B0BAB6', marginTop:4 }}>{TITLE_FONT_OPTIONS.find(f=>f.id===titleFont)?.desc}</div>
+                        <div style={{ fontSize:11, color:'#8BA89C', marginTop:4 }}>{TITLE_FONT_OPTIONS.find(f=>f.id===titleFont)?.desc}</div>
                       </div>
                     </div>
                     <div style={{ borderTop:'1px solid rgba(0,0,0,0.06)', paddingTop:10, marginBottom:8 }}>
@@ -1356,6 +1396,24 @@ ${manualSub}`.trim()
             {videoPreview && !videos.portrait && !videos.landscape && (
               <video src={`${videoPreview}#t=0.1`} controls playsInline preload="metadata"
                 style={{ width:'100%', borderRadius:12, maxHeight:200, objectFit:'cover', marginBottom:12 }} />
+            )}
+
+            {/* 영상 저장하기 */}
+            {(videos.portrait || videos.landscape) && (
+              <div style={{ display:'flex', gap:8, marginBottom:14 }}>
+                {videos.portrait && (
+                  <button onClick={() => handleVideoSave(videos.portrait.url, 'portrait')}
+                    style={{ flex:1, padding:'9px 0', borderRadius:10, border:'1.5px solid #1D9E75', background:'#fff', color:'#1D9E75', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                    ⭐ 세로 영상 저장
+                  </button>
+                )}
+                {videos.landscape && (
+                  <button onClick={() => handleVideoSave(videos.landscape.url, 'landscape')}
+                    style={{ flex:1, padding:'9px 0', borderRadius:10, border:'1.5px solid #1D9E75', background:'#fff', color:'#1D9E75', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                    ⭐ 가로 영상 저장
+                  </button>
+                )}
+              </div>
             )}
 
             {/* 플랫폼별 캡션 & 해시태그 */}

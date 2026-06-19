@@ -19,7 +19,8 @@ export async function POST(request) {
   try {
     const { imageUrls } = await request.json()
     if (!imageUrls?.length) {
-      return NextResponse.json({ bgmUrl: randomFrom(BGM_FILES.cafe) })
+      const idx = Math.floor(Math.random() * BGM_FILES.cafe.length)
+      return NextResponse.json({ bgmUrl: `${SUPABASE_BGM_URL}/${BGM_FILES.cafe[idx]}` })
     }
 
     // 첫 번째 사진만 분석 (비용 절약)

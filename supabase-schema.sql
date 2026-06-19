@@ -56,6 +56,19 @@ CREATE TABLE video_uploads (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- ── 영상 저장(즐겨찾기) 트래킹 ─────────────────────────────────
+-- Supabase SQL Editor에서 실행하세요
+-- CREATE TABLE IF NOT EXISTS video_saves (
+--   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+--   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+--   video_url TEXT,
+--   video_type TEXT,
+--   title TEXT,
+--   created_at TIMESTAMPTZ DEFAULT now()
+-- );
+-- ALTER TABLE video_saves ENABLE ROW LEVEL SECURITY;
+-- CREATE POLICY "service_role_saves" ON video_saves FOR ALL USING (true);
+
 -- ── Meta (Instagram + Facebook) 컬럼 추가 ────────────────────
 -- ALTER TABLE users ADD COLUMN IF NOT EXISTS meta_access_token TEXT;
 -- ALTER TABLE users ADD COLUMN IF NOT EXISTS meta_token_expiry TIMESTAMPTZ;
