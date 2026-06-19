@@ -21,6 +21,127 @@ function ConnectContent() {
     login_first:      '먼저 구글 계정으로 로그인한 뒤 시도해주세요.',
     cancelled:        '연동이 취소됐어요.',
     failed:           '연동 중 오류가 발생했어요. 다시 시도해주세요.',
+    tiktok_cancelled: '틱톡 연동이 취소됐어요.',
+    tiktok_state:     '틱톡 연동 보안 검증에 실패했어요. 다시 시도해주세요.',
+  }
+
+  // 채널별 연동 안내 가이드 (틱톡 · 트립어드바이저 · 레드노트)
+  const GUIDES = {
+    tiktok: {
+      emoji: '🎵',
+      title: '틱톡 연동',
+      subtitle: '제작한 영상을 틱톡에 자동 업로드하세요',
+      infoTitle: '🎵 틱톡 연동 시 가능한 기능',
+      infoItems: [
+        '✅ 제작한 쇼츠 영상 틱톡 자동 업로드',
+        '✅ 캡션·해시태그 자동 입력',
+      ],
+      steps: [
+        { num: 1, title: '아래 버튼으로 틱톡 로그인', desc: '틱톡 계정으로 로그인하면 자동으로 연동돼요.' },
+        { num: 2, title: '영상 업로드 권한 허용', desc: '틱톡 화면에서 권한을 허용해주세요.' },
+        { num: 3, title: '연동 완료', desc: '이제 영상 제작 후 틱톡에 바로 올릴 수 있어요.' },
+      ],
+      connect: { label: '🎵 틱톡 계정으로 연동하기', href: '/api/auth/tiktok' },
+    },
+    tripadvisor: {
+      emoji: '🌍',
+      title: '트립어드바이저 연동',
+      subtitle: '트립어드바이저 리뷰를 관리하세요',
+      infoTitle: 'ℹ️ 트립어드바이저 안내',
+      infoItems: [
+        '트립어드바이저는 공식 API가 제한적이에요.',
+        '비즈니스 관리 센터에서 직접 관리하거나,',
+        '고랑AI 팀이 리뷰 답변을 도와드려요.',
+      ],
+      steps: [
+        { num: 1, title: '비즈니스 관리 센터 접속', desc: '아래 버튼으로 트립어드바이저 오너 센터에 들어가세요.' },
+        { num: 2, title: '내 가게 페이지 확인/등록', desc: '아직 등록 전이면 가게를 먼저 등록해주세요.' },
+        { num: 3, title: '리뷰 답변 대행', desc: '외국어 리뷰 답변은 고랑AI 팀에 맡기실 수 있어요.' },
+      ],
+      link: { label: '트립어드바이저 비즈니스 관리 →', url: 'https://www.tripadvisor.com/Owners' },
+    },
+    rednote: {
+      emoji: '🇨🇳',
+      title: '레드노트(샤오홍슈) 연동',
+      subtitle: '중국 고객에게 가게를 노출하세요',
+      infoTitle: 'ℹ️ 레드노트 안내',
+      infoItems: [
+        '레드노트(샤오홍슈)는 공식 업로드 API가 없어요.',
+        '고랑AI에서 영상을 만든 뒤 반자동으로 올려요.',
+      ],
+      steps: [
+        { num: 1, title: '고랑AI에서 영상 제작', desc: '제주 감성 영상을 만들어요.' },
+        { num: 2, title: '영상 다운로드', desc: '완성된 영상을 휴대폰에 저장하세요.' },
+        { num: 3, title: '샤오홍슈 앱에 업로드', desc: '직접 올리거나 고랑AI 팀이 대행해드려요.' },
+      ],
+      link: { label: '샤오홍슈(레드노트) 바로가기 →', url: 'https://www.xiaohongshu.com' },
+    },
+  }
+
+  if (GUIDES[flow]) {
+    const g = GUIDES[flow]
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '40px 24px', gap: 16 }}>
+        <div style={{ textAlign: 'center', marginBottom: 8 }}>
+          <div style={{ fontSize: 36, marginBottom: 12 }}>{g.emoji}</div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: '#1A2421', marginBottom: 6 }}>{g.title}</div>
+          <div style={{ fontSize: 13, color: '#6B7875', lineHeight: 1.6 }}>{g.subtitle}</div>
+        </div>
+
+        {error && (
+          <div style={{ background: '#FCEBEB', border: '1.5px solid #F09595', borderRadius: 12, padding: '12px 16px', fontSize: 13, color: '#A32D2D' }}>
+            {errorMsg[error] || '오류가 발생했어요. 다시 시도해주세요.'}
+          </div>
+        )}
+
+        <div style={{ background: '#E1F5EE', border: '1.5px solid #5DCAA5', borderRadius: 14, padding: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#0F6E56', marginBottom: 10 }}>{g.infoTitle}</div>
+          {g.infoItems.map(t => (
+            <div key={t} style={{ fontSize: 13, color: '#085041', marginBottom: 6, lineHeight: 1.5 }}>{t}</div>
+          ))}
+        </div>
+
+        {g.steps.map(step => (
+          <div key={step.num} style={{ background: '#F9FAFA', border: '1.5px solid #E6EAE8', borderRadius: 14, padding: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+              <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#E6EAE8', color: '#6B7875', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>{step.num}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#1A2421' }}>{step.title}</div>
+            </div>
+            <div style={{ fontSize: 12, color: '#6B7875', lineHeight: 1.7, paddingLeft: 38 }}>{step.desc}</div>
+          </div>
+        ))}
+
+        {g.connect && (
+          <a href={g.connect.href} style={{ textDecoration: 'none' }}>
+            <button style={{ width: '100%', padding: 16, borderRadius: 14, border: 'none', background: '#1D9E75', color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
+              {g.connect.label}
+            </button>
+          </a>
+        )}
+
+        {g.link && (
+          <a href={g.link.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>
+            <button style={{ width: '100%', padding: 16, borderRadius: 14, border: '1.5px solid #1D9E75', background: '#fff', color: '#1D9E75', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
+              {g.link.label}
+            </button>
+          </a>
+        )}
+
+        <div style={{ background: '#FFF8E6', border: '1.5px solid #F5C842', borderRadius: 14, padding: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#7A4A00', marginBottom: 6 }}>💡 도움이 필요하세요?</div>
+          <div style={{ fontSize: 12, color: '#5C3500', lineHeight: 1.7 }}>
+            연동에 어려움이 있으면 고랑AI 팀에 문의해주세요. 직접 도와드릴게요.
+          </div>
+        </div>
+
+        <button
+          onClick={() => router.push('/home')}
+          style={{ width: '100%', padding: 12, borderRadius: 12, border: '1.5px solid #E6EAE8', background: '#fff', color: '#6B7875', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}
+        >
+          ← 홈으로
+        </button>
+      </div>
+    )
   }
 
   // 카카오 연동 안내 흐름

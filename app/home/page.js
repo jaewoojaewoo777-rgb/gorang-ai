@@ -25,36 +25,44 @@ export default function HomePage() {
   const igConnected  = !!shop.instagram_user_id
   const anyConnected = ytConnected || igConnected
 
+  // 페이스북 실제 로고 (파란 라운드 사각형 + 흰 f)
+  const FacebookIcon = (
+    <svg width="18" height="18" viewBox="0 0 24 24" style={{ display:'block' }}>
+      <rect width="24" height="24" rx="6" fill="#1877F2" />
+      <path fill="#fff" d="M16.5 12.06H14V19h-3v-6.94H9V9.5h2V8.1c0-2 1.2-3.1 3-3.1.86 0 1.76.15 1.76.15v1.94H14.8c-.95 0-1.25.6-1.25 1.2v1.31h2.62l-.42 2.56z" />
+    </svg>
+  )
+
   const channels = [
     {
       icon: '🔵', name: 'Google 비즈니스',
       sub: ytConnected ? '리뷰 답변 · 구글맵 연결됨' : '탭해서 연동하기',
-      connected: ytConnected, review: false,
+      connected: ytConnected, review: false, href: '/connect',
     },
     {
       icon: '▶️', name: 'YouTube',
       sub: ytConnected ? '쇼츠 자동 업로드 가능' : '구글 연동 시 자동 사용',
-      connected: ytConnected, review: false,
+      connected: ytConnected, review: false, href: '/connect',
     },
     {
       icon: '📸', name: 'Instagram',
       sub: '앱 심사 중...', connected: false, review: true,
     },
     {
-      icon: '📘', name: 'Facebook',
+      icon: FacebookIcon, name: 'Facebook',
       sub: '앱 심사 중...', connected: false, review: true,
     },
     {
       icon: '🎵', name: 'TikTok',
-      sub: '준비 중...', connected: false, review: true,
+      sub: '탭해서 연동하기', connected: false, review: false, href: '/connect?flow=tiktok',
     },
     {
       icon: '🌍', name: 'TripAdvisor',
-      sub: '준비 중...', connected: false, review: true,
+      sub: '탭해서 연동하기', connected: false, review: false, href: '/connect?flow=tripadvisor',
     },
     {
-      icon: '📕', name: 'RedNote',
-      sub: '준비 중...', connected: false, review: true,
+      icon: '🇨🇳', name: 'RedNote',
+      sub: '탭해서 연동하기', connected: false, review: false, href: '/connect?flow=rednote',
     },
   ]
 
@@ -90,11 +98,11 @@ export default function HomePage() {
         <Card style={{ marginBottom:12 }}>
           <div style={{ fontSize:12, color:'#6B7875', fontWeight:600, marginBottom:8 }}>연동된 채널</div>
           {channels.map((ch, i) => {
-            const clickable = !ch.connected && !ch.review
+            const clickable = !ch.connected && !ch.review && ch.href
             const isLast = i === channels.length - 1
             return (
               <div key={ch.name}
-                onClick={clickable ? () => router.push('/connect') : undefined}
+                onClick={clickable ? () => router.push(ch.href) : undefined}
                 style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'6px 0', borderBottom: isLast ? 'none' : '1px solid #F4F6F5', cursor: clickable ? 'pointer' : 'default' }}>
                 <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                   <span style={{ fontSize:18 }}>{ch.icon}</span>
