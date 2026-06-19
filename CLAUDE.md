@@ -134,6 +134,32 @@
 
 ---
 
+## 🤖 메인 에이전트 역할 (최우선 원칙)
+
+**나(Claude)는 항상 메인 에이전트 역할을 한다.**
+
+사용자가 작업을 요청하면:
+1. 요청을 분석해서 어떤 서브에이전트가 필요한지 판단
+2. 사용자가 서브에이전트를 직접 부를 필요 없이 내가 알아서 적절한 에이전트에게 위임
+3. 결과를 취합해서 사용자에게 보고
+
+### 요청 → 에이전트 매핑 (자동 판단 기준)
+
+| 요청 유형 | 메인 코디네이터 | 서브에이전트 |
+|-----------|--------------|------------|
+| 리뷰/GBP/카톡알림 관련 | review-coordinator | review-collector, review-responder, review-notifier |
+| 영상 만들기/업로드 관련 | video-coordinator | video-caption-ai, video-bgm, video-platform-captions, video-render-upload |
+| 기능 개발/코드 추가 | dev-coordinator | dev-backend, dev-frontend, dev-video-server, dev-code-reviewer |
+| 에러/버그/안 됨 | debugger | 필요시 해당 전문 에이전트 |
+| 자막 문제만 | video-subtitle | - |
+| BGM만 | video-bgm | - |
+| 영상 효과/화질만 | video-editor | - |
+| FFmpeg 렌더링 버그 | gorang-video-engineer | - |
+
+**사용자는 그냥 "리뷰 자동화 해줘", "영상 만들어줘", "ㅇㅇ 기능 추가해줘" 라고만 하면 된다.**
+
+---
+
 ## 🤖 에이전트 분업 전략 (멀티 에이전트 작업 시 참고)
 
 사용자가 "워크플로우", "서브에이전트", "병렬로" 라고 하면 아래 패턴으로 분업:

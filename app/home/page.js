@@ -21,22 +21,19 @@ export default function HomePage() {
     .map(([k,v]) => ({ en:'🇺🇸', zh:'🇨🇳', ko:'🇰🇷', ja:'🇯🇵' }[k] + ` ${v}건`).join(' · '))
 
   // 실제 연동 상태 (하드코딩 X — /api/shop 값으로 판별)
-  const ytConnected  = !!shop.google_connected                        // 구글 OAuth 완료 = YouTube 사용 가능
-  const gbConnected  = !!(shop.gbp_location_id || shop.gbp_account_id) // GBP 위치까지 설정된 경우
-  const ttConnected  = !!shop.tiktok_open_id
+  const ytConnected  = !!shop.google_connected   // 구글 OAuth 완료 = YouTube + Google 비즈니스 사용 가능
   const igConnected  = !!shop.instagram_user_id
-  const taConnected  = !!shop.tripadvisor_location_id
-  const anyConnected = ytConnected || gbConnected || ttConnected || igConnected || taConnected
+  const anyConnected = ytConnected || igConnected
 
   const channels = [
     {
       icon: '🔵', name: 'Google 비즈니스',
-      sub: gbConnected ? '리뷰 답변 · 구글맵' : '연동이 필요해요',
-      connected: gbConnected, review: false,
+      sub: ytConnected ? '리뷰 답변 · 구글맵 연결됨' : '탭해서 연동하기',
+      connected: ytConnected, review: false,
     },
     {
       icon: '▶️', name: 'YouTube',
-      sub: ytConnected ? '쇼츠 자동 업로드' : '구글 연동 시 자동 사용',
+      sub: ytConnected ? '쇼츠 자동 업로드 가능' : '구글 연동 시 자동 사용',
       connected: ytConnected, review: false,
     },
     {
@@ -46,20 +43,6 @@ export default function HomePage() {
     {
       icon: '📘', name: 'Facebook',
       sub: '앱 심사 중...', connected: false, review: true,
-    },
-    {
-      icon: '🎵', name: 'TikTok',
-      sub: ttConnected ? (shop.tiktok_display_name || '영상 자동 업로드') : '탭해서 연동하기',
-      connected: ttConnected, review: false,
-    },
-    {
-      icon: '🦉', name: 'TripAdvisor',
-      sub: taConnected ? (shop.tripadvisor_location_name || '리뷰 알림 수신 중') : '탭해서 연동하기',
-      connected: taConnected, review: false,
-    },
-    {
-      icon: '🇨🇳', name: 'RedNote',
-      sub: '탭해서 연동하기', connected: false, review: false,
     },
   ]
 
@@ -109,7 +92,7 @@ export default function HomePage() {
                   </div>
                 </div>
                 {ch.connected
-                  ? <span style={{ fontSize:10, fontWeight:700, color:'#fff', background:'#1D9E75', padding:'3px 10px', borderRadius:10 }}>✓ 연동됨</span>
+                  ? <span style={{ fontSize:10, fontWeight:700, color:'#fff', background:'#1D9E75', padding:'4px 12px', borderRadius:10 }}>연동완료</span>
                   : <span style={{ fontSize:10, fontWeight:600, color: ch.review ? '#EF9F27' : '#1D9E75' }}>
                       {ch.review ? '심사중' : '연동하기 →'}
                     </span>
@@ -122,13 +105,13 @@ export default function HomePage() {
         {anyConnected
           ? <PrimaryBtn onClick={() => router.push('/video')}>영상 만들러 가기 →</PrimaryBtn>
           : <div style={{ border:'1.5px solid #E6EAE8', borderRadius:14, padding:'16px', textAlign:'center' }}>
-              <div style={{ fontSize:14, fontWeight:700, color:'#1A2421', marginBottom:6 }}>🔗 먼저 채널을 연동해주세요</div>
+              <div style={{ fontSize:14, fontWeight:700, color:'#1A2421', marginBottom:6 }}>🔗 구글 계정을 연동해주세요</div>
               <div style={{ fontSize:12, color:'#6B7875', marginBottom:12, lineHeight:1.6 }}>
-                구글, 틱톡, 트립어드바이저 중 하나 이상 연동하면<br/>영상을 만들고 바로 업로드할 수 있어요.
+                구글 연동 하나로 유튜브 업로드 · 구글맵 리뷰 관리를<br/>모두 시작할 수 있어요.
               </div>
               <button onClick={() => router.push('/connect')}
                 style={{ padding:'11px 24px', borderRadius:12, border:'none', background:'#1D9E75', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                채널 연동하러 가기 →
+                구글 연동하러 가기 →
               </button>
             </div>
         }
