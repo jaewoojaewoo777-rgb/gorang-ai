@@ -480,7 +480,7 @@ useEffect(() => {
         if (!startData.ok || !startData.jobId) throw new Error(startData.error || '영상 생성 시작 실패')
         const jobId = startData.jobId
 
-        const deadline = Date.now() + 6 * 60 * 1000   // 최대 6분 대기
+        const deadline = Date.now() + 8 * 60 * 1000   // 최대 8분 대기
         while (Date.now() < deadline) {
           await new Promise(r => setTimeout(r, 3000))
           setGenProgress(prev => (prev < capProgress ? prev + 1 : prev))
@@ -492,7 +492,7 @@ useEffect(() => {
           if (sdata.status === 'done' && sdata.videoUrl) return sdata.videoUrl
           if (sdata.status === 'error') throw new Error(sdata.error || '렌더링 실패')
         }
-        throw new Error('렌더링이 너무 오래 걸려요 (6분 초과)')
+        throw new Error('렌더링이 너무 오래 걸려요 (8분 초과)')
       }
 
       if (needPortrait) {
