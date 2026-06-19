@@ -27,14 +27,31 @@ export async function GET() {
   const session = await getSession()
   if (!session.userId) return NextResponse.json({ error: '로그인 필요' }, { status: 401 })
 
-  const { data } = await supabaseAdmin
+  // 컬럼명을 나열하면 DB에 없는 컬럼이 하나라도 있을 때 쿼리 전체가 실패 → {} 반환됨.
+  // 그래서 * 로 전부 가져온 뒤, 화면에 필요한 값만 골라서 응답 (토큰 등 민감정보는 제외).
+  const { data, error } = await supabaseAdmin
     .from('users')
-    .select('shop_name, shop_type, shop_location, shop_intro, email, google_name, google_id, gbp_account_id, gbp_location_id, tiktok_open_id, tiktok_display_name, instagram_user_id, tripadvisor_location_id, tripadvisor_location_name')
+    .select('*')
     .eq('id', session.userId)
     .single()
 
+  if (error) console.error('shop GET error:', error.message)
   if (!data) return NextResponse.json({})
-  const { google_id, ...rest } = data
-  // google_id 존재 = 구글 계정으로 로그인됨 = YouTube 사용 가능
-  return NextResponse.json({ ...rest, google_connected: !!google_id })
+
+  return NextResponse.json({
+    shop_name: data.shop_name ?? null,
+    shop_type: data.shop_type ?? null,
+    shop_location: data.shop_location ?? null,
+    shop_intro: data.shop_intro ?? null,
+    email: data.email ?? null,
+    google_name: data.google_name ?? null,
+    gbp_account_id: data.gbp_account_id ?? null,
+    gbp_location_id: data.gbp_location_id ?? null,
+    tiktok_open_id: data.tiktok_open_id ?? null,
+    tiktok_display_name: data.tiktok_display_name ?? null,
+    instagram_user_id: data.instagram_user_id ?? null,
+    tripadvisor_location_id: data.tripadvisor_location_id ?? null,
+    tripadvisor_location_name: data.tripadvisor_location_name ?? null,
+    google_connected: !!data.google_id,
+  })
 }
