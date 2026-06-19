@@ -41,13 +41,13 @@ const PLATFORMS = [
 ]
 
 const TITLE_FONT_OPTIONS = [
-  { id: 'GowunBatang',  label: '고랑 Gorang', desc: '고운바탕 — 고급 명조체 (기본)',   css: "'Gowun Batang', serif" },
-  { id: 'BlackHanSans', label: '고랑 Gorang', desc: '블랙한산스 — 굵고 임팩트 강한',  css: "'Black Han Sans', sans-serif" },
-  { id: 'Pretendard',   label: '고랑 Gorang', desc: '프리텐다드 — 세련된 모던',        css: "'Pretendard', sans-serif" },
-  { id: 'DoHyeon',      label: '고랑 Gorang', desc: '도현 — 깔끔 고딕',               css: "'Do Hyeon', sans-serif" },
-  { id: 'Jua',          label: '고랑 Gorang', desc: '주아 — 귀엽고 둥근 고딕',        css: "'Jua', sans-serif" },
-  { id: 'Gaegu',        label: '고랑 Gorang', desc: '개구 — 손글씨 느낌',             css: "'Gaegu', cursive" },
-  { id: 'NanumPen',     label: '고랑 Gorang', desc: '나눔펜 — 캐주얼 손글씨',         css: "'Nanum Pen Script', cursive" },
+  { id: 'GowunBatang',  label: '고운바탕',  desc: '고운바탕 — 고급 명조체 (기본)',   css: "'Gowun Batang', serif" },
+  { id: 'BlackHanSans', label: '블랙한산스', desc: '블랙한산스 — 굵고 임팩트 강한',  css: "'Black Han Sans', sans-serif" },
+  { id: 'Pretendard',   label: '프리텐다드', desc: '프리텐다드 — 세련된 모던',        css: "'Pretendard', sans-serif" },
+  { id: 'DoHyeon',      label: '도현체',    desc: '도현 — 깔끔 고딕',               css: "'Do Hyeon', sans-serif" },
+  { id: 'Jua',          label: '주아체',    desc: '주아 — 귀엽고 둥근 고딕',        css: "'Jua', sans-serif" },
+  { id: 'Gaegu',        label: '개구체',    desc: '개구 — 손글씨 느낌',             css: "'Gaegu', cursive" },
+  { id: 'NanumPen',     label: '나눔펜체',  desc: '나눔펜 — 캐주얼 손글씨',         css: "'Nanum Pen Script', cursive" },
 ]
 
 const TONE_OPTIONS = [
@@ -1172,7 +1172,7 @@ ${manualSub}`.trim()
                 {TITLE_FONT_OPTIONS.map(f => (
                   <button key={f.id} onClick={() => setTitleFont(f.id)}
                     title={f.desc}
-                    style={{ padding:'6px 12px', borderRadius:16, border:`1.5px solid ${titleFont===f.id?'#5DCAA5':'#E6EAE8'}`, background:titleFont===f.id?'#E1F5EE':'#fff', color:titleFont===f.id?'#0F6E56':'#3A4744', fontSize:15, fontWeight:titleFont===f.id?700:400, cursor:'pointer', fontFamily:f.css, letterSpacing:0 }}>
+                    style={{ padding:'8px 14px', borderRadius:16, border:`1.5px solid ${titleFont===f.id?'#5DCAA5':'#E6EAE8'}`, background:titleFont===f.id?'#E1F5EE':'#fff', color:titleFont===f.id?'#0F6E56':'#3A4744', fontSize:17, fontWeight:'normal', cursor:'pointer', fontFamily:f.css, letterSpacing:0 }}>
                     {f.label}
                   </button>
                 ))}
@@ -1239,7 +1239,7 @@ ${manualSub}`.trim()
                           {TITLE_FONT_OPTIONS.map(f => (
                             <button key={f.id} onClick={() => setTitleFont(f.id)}
                               title={f.desc}
-                              style={{ padding:'5px 10px', borderRadius:16, border:`1.5px solid ${titleFont===f.id?'#5DCAA5':'#E6EAE8'}`, background:titleFont===f.id?'#E1F5EE':'#fff', color:titleFont===f.id?'#0F6E56':'#6B7875', fontSize:11, fontWeight:titleFont===f.id?700:400, cursor:'pointer' }}>
+                              style={{ padding:'7px 12px', borderRadius:16, border:`1.5px solid ${titleFont===f.id?'#5DCAA5':'#E6EAE8'}`, background:titleFont===f.id?'#E1F5EE':'#fff', color:titleFont===f.id?'#0F6E56':'#6B7875', fontSize:15, fontWeight:'normal', cursor:'pointer', fontFamily:f.css }}>
                               {f.label}
                             </button>
                           ))}
