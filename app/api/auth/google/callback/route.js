@@ -90,7 +90,6 @@ export async function GET(request) {
     const redirectTo = profile?.shop_name?.trim() ? '/home' : '/register'
 
     // 6. iron-session 형식으로 세션 데이터 암호화 후 쿠키를 리다이렉트 응답에 직접 설정
-    //    NextResponse.redirect() + response.cookies.set() 조합이 Next.js 14에서 가장 확실한 방법
     const sealed = await sealData(
       { userId: user.id, googleId },
       { password: SESSION_PASSWORD, ttl: MAX_AGE }
@@ -103,6 +102,7 @@ export async function GET(request) {
       sameSite: 'lax',
       maxAge: MAX_AGE,
       path: '/',
+      ...(process.env.COOKIE_DOMAIN ? { domain: process.env.COOKIE_DOMAIN } : {}),
     })
 
     return response
