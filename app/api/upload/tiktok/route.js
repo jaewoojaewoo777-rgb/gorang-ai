@@ -3,7 +3,6 @@ import { getSession } from '../../../../lib/session'
 import { supabaseAdmin } from '../../../../lib/db'
 import {
   uploadTikTokVideo,
-  queryCreatorInfo,
   refreshTikTokToken,
   getTikTokPostStatus,
 } from '../../../../lib/tiktok'
@@ -141,15 +140,11 @@ export async function POST(request) {
       srcMeta = conv.meta
     }
 
-    // Direct Post 전 creator_info 조회 → privacy/상호작용 설정을 계정 허용값에 맞춤
-    const creatorInfo = await queryCreatorInfo(accessToken).catch(() => ({}))
-
     const { publish_id } = await uploadTikTokVideo({
       accessToken,
       caption,
       videoBuffer,
       mimeType: 'video/mp4',
-      creatorInfo,
     })
 
     // 영상 바이트 전송(PUT)은 완료됨. TikTok은 비동기로 처리/게시하므로
