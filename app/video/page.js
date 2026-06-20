@@ -682,8 +682,7 @@ useEffect(() => {
           continue
         }
 
-        // 틱톡 업로드는 비공개(SELF_ONLY)라 '영상별' 공개 URL은 없지만,
-        // '확인하기'를 누르면 틱톡 앱/웹이 열려 내 프로필에서 바로 확인 가능
+        // 틱톡은 Inbox(드래프트) 업로드 → 휴대폰 틱톡 앱 알림함에서 게시 완료해야 함
         const urlMap = {
           tiktok: data.ok ? 'https://www.tiktok.com/' : undefined,
           instagram: data.ok ? 'https://www.instagram.com/' : undefined,
@@ -691,7 +690,7 @@ useEffect(() => {
           line: undefined,
         }
         const noteMap = {
-          tiktok: data.ok ? '내 프로필 > 영상 탭에서 확인하세요' : undefined,
+          tiktok: data.ok ? '📱 휴대폰 틱톡 앱 → 알림함 → "고랑AI 동영상 준비됨" → 게시 (PC는 안 됨)' : undefined,
           instagram: data.ok ? '내 피드에서 확인하세요' : undefined,
           facebook: data.ok ? (data.pageName ? `${data.pageName} 페이지에서 확인하세요` : '페이지에서 확인하세요') : undefined,
           line: data.ok ? 'LINE 팔로워에게 영상이 발송됐어요' : undefined,
