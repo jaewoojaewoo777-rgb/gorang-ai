@@ -6,14 +6,32 @@ import { BottomNav, Card, PrimaryBtn } from '../../components/ui'
 export default function SettingsPage() {
   const router = useRouter()
   const [shop, setShop] = useState({})
+  const [disconnecting, setDisconnecting] = useState(false)
 
   useEffect(() => {
     fetch('/api/shop').then(r => r.json()).then(setShop).catch(() => {})
   }, [])
 
-  // 실제 연동 상태 판별
   const gbConnected = !!(shop.gbp_location_id || shop.gbp_account_id)
   const ttConnected = !!shop.tiktok_open_id
+
+  async function handleTikTokDisconnect() {
+    if (!confirm('TikTok 연동을 해제하시겠어요?\n해제 후 다시 연동할 수 있습니다.')) return
+    setDisconnecting(true)
+    try {
+      const res = await fetch('/api/tiktok/disconnect', { method: 'POST' })
+      if (res.ok) {
+        setShop(prev => ({ ...prev, tiktok_open_id: null, tiktok_access_token: null, tiktok_refresh_token: null }))
+        alert('TikTok 연동이 해제되었습니다.')
+      } else {
+        alert('연동 해제에 실패했습니다. 다시 시도해주세요.')
+      }
+    } catch (e) {
+      alert('오류가 발생했습니다.')
+    } finally {
+      setDisconnecting(false)
+    }
+  }
 
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column' }}>
@@ -37,19 +55,48 @@ export default function SettingsPage() {
 
         <Card style={{ marginBottom:12 }}>
           <div style={{ fontSize:12, fontWeight:700, color:'#1A2421', marginBottom:10 }}>연동된 계정</div>
-          {[
-            { icon:'🔵', name:'Google 비즈니스', status: gbConnected ? '✓ 연동됨' : '연동 필요', color: gbConnected ? '#1D9E75' : '#B0BAB6' },
-            { icon:'📸', name:'Instagram', status:'심사 중', color:'#EF9F27' },
-            { icon:'🎵', name:'TikTok', status: ttConnected ? '✓ 연동됨' : '연동 필요', color: ttConnected ? '#1D9E75' : '#B0BAB6' },
-          ].map(ch => (
-            <div key={ch.name} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'7px 0', borderBottom:'1px solid #F4F6F5' }}>
-              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                <span>{ch.icon}</span>
-                <span style={{ fontSize:13, color:'#1A2421' }}>{ch.name}</span>
-              </div>
-              <span style={{ fontSize:11, color:ch.color, fontWeight:600 }}>{ch.status}</span>
+
+          {/* Google 비즈니스 */}
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'7px 0', borderBottom:'1px solid #F4F6F5' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <span>🔵</span>
+              <span style={{ fontSize:13, color:'#1A2421' }}>Google 비즈니스</span>
             </div>
-          ))}
+            <span style={{ fontSize:11, color: gbConnected ? '#1D9E75' : '#B0BAB6', fontWeight:600 }}>
+              {gbConnected ? '✓ 연동됨' : '연동 필요'}
+            </span>
+          </div>
+
+          {/* Instagram */}
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'7px 0', borderBottom:'1px solid #F4F6F5' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <span>📸</span>
+              <span style={{ fontSize:13, color:'#1A2421' }}>Instagram</span>
+            </div>
+            <span style={{ fontSize:11, color:'#EF9F27', fontWeight:600 }}>심사 중</span>
+          </div>
+
+          {/* TikTok */}
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'7px 0', borderBottom:'1px solid #F4F6F5' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <span>🎵</span>
+              <span style={{ fontSize:13, color:'#1A2421' }}>TikTok</span>
+            </div>
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <span style={{ fontSize:11, color: ttConnected ? '#1D9E75' : '#B0BAB6', fontWeight:600 }}>
+                {ttConnected ? '✓ 연동됨' : '연동 필요'}
+              </span>
+              {ttConnected && (
+                <button
+                  onClick={handleTikTokDisconnect}
+                  disabled={disconnecting}
+                  style={{ fontSize:10, color:'#fff', background:'#E53935', border:'none', borderRadius:6, padding:'3px 8px', cursor:'pointer', fontWeight:600, fontFamily:'Noto Sans KR, sans-serif' }}>
+                  {disconnecting ? '해제중...' : '연동해제'}
+                </button>
+              )}
+            </div>
+          </div>
+
           <button onClick={() => router.push('/connect')}
             style={{ fontSize:12, color:'#1D9E75', fontWeight:600, background:'none', border:'none', cursor:'pointer', padding:'8px 0 0', fontFamily:'Noto Sans KR, sans-serif' }}>
             계정 추가 연동 →
@@ -59,8 +106,8 @@ export default function SettingsPage() {
         <div style={{ background:'#F4F6F5', borderRadius:14, padding:'14px 16px', marginBottom:12 }}>
           <div style={{ fontSize:12, fontWeight:700, color:'#6B7875', marginBottom:8 }}>플랜 업그레이드</div>
           {[
-            { name:'프로', price:'129,000원/월', desc:'4K AI 영상 · 월 8개', color:'#534AB7', bg:'#EEEDFE' },
-            { name:'엔터프라이즈', price:'별도 문의', desc:'거래처 영상팀 + 전담 매니저', color:'#EF9F27', bg:'#FAEEDA' },
+            { name:'프로', price:'129,000원/월', desc:'4K AI 영상 · 월 8개', color:'#534AB7' },
+            { name:'엔터프라이즈', price:'별도 문의', desc:'거래처 영상팀 + 전담 매니저', color:'#EF9F27' },
           ].map(p => (
             <div key={p.name} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 0', borderBottom:'1px solid #E6EAE8' }}>
               <div>
