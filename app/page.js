@@ -207,6 +207,19 @@ export default function LandingPage() {
         <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', fontFamily: 'Noto Sans KR, sans-serif' }}>첫 30일 무료 · 신용카드 불필요</div>
       </div>
 
+      {/* ── 푸터 ── */}
+      <div style={{ background: '#0A1F19', padding: '28px 24px 36px', textAlign: 'center' }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: 'rgba(255,255,255,.9)', marginBottom: 14, letterSpacing: '-0.3px', fontFamily: 'Noto Sans KR, sans-serif' }}>🌿 고랑AI</div>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 14, marginBottom: 14 }}>
+          <a href="/privacy" style={{ fontSize: 12, color: 'rgba(255,255,255,.8)', textDecoration: 'underline', fontWeight: 600, fontFamily: 'Noto Sans KR, sans-serif' }}>개인정보처리방침</a>
+          <span style={{ color: 'rgba(255,255,255,.3)' }}>·</span>
+          <a href="/terms" style={{ fontSize: 12, color: 'rgba(255,255,255,.8)', textDecoration: 'underline', fontWeight: 600, fontFamily: 'Noto Sans KR, sans-serif' }}>이용약관</a>
+        </div>
+        <div style={{ fontSize: 11, color: 'rgba(255,255,255,.4)', lineHeight: 1.7, fontFamily: 'Noto Sans KR, sans-serif' }}>
+          문의: jaewoojaewoo777@gmail.com<br />© 2026 고랑AI. All rights reserved.
+        </div>
+      </div>
+
     </div>
   )
 }
