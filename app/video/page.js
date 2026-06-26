@@ -154,6 +154,47 @@ export default function VideoPage() {
   const [platformCaptions, setPlatformCaptions] = useState({})
   const [captionGenerating, setCaptionGenerating] = useState({})
   const [streakInfo, setStreakInfo] = useState(null)
+
+  // 틱톡 Direct Post 설정 (TikTok UX 가이드라인 필수 요소)
+  const [ttCreator, setTtCreator] = useState(null)          // creator_info API 응답
+  const [ttCreatorLoading, setTtCreatorLoading] = useState(false)
+  const [ttCreatorError, setTtCreatorError] = useState(null)
+  const [ttPost, setTtPost] = useState({
+    privacy: '',            // 기본 미선택 (사용자가 직접 골라야 함)
+    // 상호작용은 가이드라인상 기본 미허용(체크 안 됨) → disable=true 로 시작
+    disableComment: true,
+    disableDuet: true,
+    disableStitch: true,
+    disclose: false,        // 상업적 콘텐츠 공개 토글 (기본 OFF)
+    yourBrand: false,       // brand_organic_toggle (내 브랜드)
+    brandedContent: false,  // brand_content_toggle (유료 파트너십)
+    aigc: false,            // AI 생성 콘텐츠 라벨
+  })
+
+  // 틱톡 선택 시 creator_info 조회 → 공개범위 옵션/닉네임/상호작용 가능여부 로드
+  useEffect(() => {
+    if (!selectedPlatforms.includes('tiktok')) return
+    if (ttCreator || ttCreatorLoading) return
+    setTtCreatorLoading(true)
+    setTtCreatorError(null)
+    fetch('/api/tiktok/creator-info')
+      .then(r => r.json())
+      .then(d => {
+        if (d.ok) setTtCreator(d.creatorInfo || {})
+        else setTtCreatorError(d.error || 'unknown')
+      })
+      .catch(() => setTtCreatorError('network'))
+      .finally(() => setTtCreatorLoading(false))
+  }, [selectedPlatforms]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 틱톡 선택 시 Direct Post 설정이 유효해야 업로드 버튼 활성화
+  const ttSelected = selectedPlatforms.includes('tiktok')
+  const ttInvalid = ttSelected && (
+    !ttCreator ||
+    !ttPost.privacy ||
+    (ttPost.disclose && !ttPost.yourBrand && !ttPost.brandedContent) ||
+    (ttPost.brandedContent && ttPost.privacy === 'SELF_ONLY')
+  )
   useEffect(() => {
   fetch('/api/streak')
     .then(r => r.json())
@@ -554,6 +595,17 @@ useEffect(() => {
       const videoData = videos[platform.ratio]
       const pc = platformCaptions[pid] || {}
 
+      // 틱톡 Direct Post 필수값 검증 (UX 가이드라인)
+      if (pid === 'tiktok') {
+        if (!ttPost.privacy) { results.push({ platform: pid, status: '❌ 공개 범위를 선택해주세요' }); continue }
+        if (ttPost.disclose && !ttPost.yourBrand && !ttPost.brandedContent) {
+          results.push({ platform: pid, status: '❌ 상업적 콘텐츠 유형(내 브랜드/브랜디드)을 선택해주세요' }); continue
+        }
+        if (ttPost.brandedContent && ttPost.privacy === 'SELF_ONLY') {
+          results.push({ platform: pid, status: '❌ 브랜디드 콘텐츠는 비공개로 게시할 수 없어요' }); continue
+        }
+      }
+
       // 샤오홍수: 캡션 클립보드 복사 + 영상 네이티브 공유 (iOS 공유시트 → 샤오홍수 작성창에 영상 첨부)
       if (pid === 'xiaohongshu') {
         const pc = platformCaptions[pid] || {}
@@ -643,6 +695,18 @@ useEffect(() => {
       form.append('title', uploadTitle)
       form.append('isShorts', isShorts ? 'true' : 'false')
       if (pc.tags) form.append('tags', JSON.stringify(pc.tags))
+
+      // 틱톡: Direct Post 설정 전송 (공개범위/상호작용/상업콘텐츠/AIGC)
+      if (pid === 'tiktok') {
+        form.append('directPost', 'true')
+        form.append('privacyLevel', ttPost.privacy)
+        form.append('disableComment', String(ttPost.disableComment))
+        form.append('disableDuet', String(ttPost.disableDuet))
+        form.append('disableStitch', String(ttPost.disableStitch))
+        form.append('brandOrganic', String(ttPost.disclose && ttPost.yourBrand))
+        form.append('brandContent', String(ttPost.disclose && ttPost.brandedContent))
+        form.append('isAigc', String(ttPost.aigc))
+      }
       // LINE: 첫 번째 사진을 영상 미리보기 이미지로 사용
       if (pid === 'line' && previews?.[0]) {
         form.append('previewImageUrl', previews[0])
@@ -690,7 +754,7 @@ useEffect(() => {
           line: undefined,
         }
         const noteMap = {
-          tiktok: data.ok ? '📱 휴대폰 틱톡 앱 → 알림함 → "고랑AI 동영상 준비됨" → 게시 (PC는 안 됨)' : undefined,
+          tiktok: data.ok ? (data.note || '틱톡에 게시됐어요.') : undefined,
           instagram: data.ok ? '내 피드에서 확인하세요' : undefined,
           facebook: data.ok ? (data.pageName ? `${data.pageName} 페이지에서 확인하세요` : '페이지에서 확인하세요') : undefined,
           line: data.ok ? 'LINE 팔로워에게 영상이 발송됐어요' : undefined,
@@ -1598,6 +1662,136 @@ ${manualSub}`.trim()
                           placeholder="#jeju #제주여행 #카페투어 (공백 구분)"
                           style={{ width:'100%', padding:'8px 10px', borderRadius:8, border:'1.5px solid #E6EAE8', fontSize:12, color:'#1A2421', fontFamily:'Noto Sans KR, sans-serif', boxSizing:'border-box', outline:'none' }}
                         />
+
+                        {/* === TikTok Direct Post 설정 (UX 가이드라인 필수) === */}
+                        <div style={{ marginTop:14, paddingTop:12, borderTop:'1px dashed #E6EAE8' }}>
+                          {ttCreatorLoading && (
+                            <div style={{ fontSize:11, color:'#B0BAB6' }}>틱톡 게시 설정 불러오는 중...</div>
+                          )}
+                          {ttCreatorError && (
+                            <div style={{ background:'#FFF7E8', borderRadius:8, padding:'8px 10px', fontSize:11, color:'#A86A12', lineHeight:1.5 }}>
+                              {ttCreatorError === 'not_connected'
+                                ? '⚠️ 틱톡 계정이 연동되지 않았어요. 설정에서 먼저 연동해주세요.'
+                                : '⚠️ 틱톡 게시 설정을 불러오지 못했어요. 잠시 후 다시 시도해주세요.'}
+                            </div>
+                          )}
+                          {ttCreator && (
+                            <>
+                              {/* 어느 계정에 게시되는지 표시 */}
+                              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
+                                {ttCreator.creator_avatar_url && (
+                                  <img src={ttCreator.creator_avatar_url} alt="" width={28} height={28} style={{ borderRadius:'50%' }} />
+                                )}
+                                <div style={{ fontSize:12, color:'#1A2421', fontWeight:700 }}>
+                                  {ttCreator.creator_nickname || '내 틱톡 계정'}
+                                  {ttCreator.creator_username ? <span style={{ color:'#B0BAB6', fontWeight:500 }}> @{ttCreator.creator_username}</span> : null}
+                                </div>
+                              </div>
+
+                              {/* 공개범위 — 기본 미선택, creator_info 옵션만 노출 */}
+                              <div style={{ fontSize:11, color:'#6B7875', fontWeight:600, marginBottom:4 }}>공개 범위 <span style={{ color:'#EF6E6E' }}>*</span></div>
+                              <select
+                                value={ttPost.privacy}
+                                onChange={e => setTtPost(prev => ({ ...prev, privacy: e.target.value }))}
+                                style={{ width:'100%', padding:'8px 10px', borderRadius:8, border:'1.5px solid #E6EAE8', fontSize:12, color: ttPost.privacy ? '#1A2421' : '#B0BAB6', fontFamily:'Noto Sans KR, sans-serif', boxSizing:'border-box', outline:'none', marginBottom:10, background:'#fff' }}
+                              >
+                                <option value="">공개 범위를 선택하세요</option>
+                                {(ttCreator.privacy_level_options || []).map(opt => {
+                                  const labels = {
+                                    PUBLIC_TO_EVERYONE: '전체 공개',
+                                    MUTUAL_FOLLOW_FRIENDS: '맞팔로우 친구',
+                                    FOLLOWER_OF_CREATOR: '팔로워',
+                                    SELF_ONLY: '비공개 (나만 보기)',
+                                  }
+                                  // 브랜디드 콘텐츠는 비공개 불가
+                                  const disabled = ttPost.brandedContent && opt === 'SELF_ONLY'
+                                  return <option key={opt} value={opt} disabled={disabled}>{labels[opt] || opt}{disabled ? ' — 브랜디드 콘텐츠는 선택 불가' : ''}</option>
+                                })}
+                              </select>
+
+                              {/* 상호작용 허용 (계정에서 막혀있으면 비활성) */}
+                              <div style={{ fontSize:11, color:'#6B7875', fontWeight:600, marginBottom:6 }}>상호작용 허용</div>
+                              <div style={{ display:'flex', gap:14, marginBottom:12, flexWrap:'wrap' }}>
+                                {[
+                                  { key:'disableComment', label:'댓글', off: ttCreator.comment_disabled },
+                                  { key:'disableDuet', label:'듀엣', off: ttCreator.duet_disabled },
+                                  { key:'disableStitch', label:'스티치', off: ttCreator.stitch_disabled },
+                                ].map(({ key, label, off }) => (
+                                  <label key={key} style={{ display:'flex', alignItems:'center', gap:5, fontSize:12, color: off ? '#C7CECB' : '#1A2421', cursor: off ? 'not-allowed' : 'pointer' }}>
+                                    <input
+                                      type="checkbox"
+                                      disabled={off}
+                                      checked={!off && !ttPost[key]}
+                                      onChange={e => setTtPost(prev => ({ ...prev, [key]: !e.target.checked }))}
+                                    />
+                                    {label}{off ? ' (계정 비활성)' : ''}
+                                  </label>
+                                ))}
+                              </div>
+
+                              {/* 상업적 콘텐츠 공개 토글 — 기본 OFF */}
+                              <label style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8, cursor:'pointer' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={ttPost.disclose}
+                                  onChange={e => setTtPost(prev => ({ ...prev, disclose: e.target.checked, yourBrand: false, brandedContent: false }))}
+                                />
+                                <span style={{ fontSize:12, color:'#1A2421', fontWeight:600 }}>상업적 콘텐츠 공개</span>
+                              </label>
+                              {ttPost.disclose && (
+                                <div style={{ background:'#F7F9F8', borderRadius:8, padding:'10px', marginBottom:8 }}>
+                                  <label style={{ display:'flex', alignItems:'flex-start', gap:6, marginBottom:8, cursor:'pointer' }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={ttPost.yourBrand}
+                                      onChange={e => setTtPost(prev => ({ ...prev, yourBrand: e.target.checked }))}
+                                    />
+                                    <span style={{ fontSize:11.5, color:'#1A2421', lineHeight:1.4 }}>
+                                      <b>내 브랜드</b> — 내 사업/브랜드 홍보. <span style={{ color:'#6B7875' }}>'프로모션 콘텐츠'로 표시됩니다.</span>
+                                    </span>
+                                  </label>
+                                  <label style={{ display:'flex', alignItems:'flex-start', gap:6, cursor:'pointer' }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={ttPost.brandedContent}
+                                      onChange={e => setTtPost(prev => ({
+                                        ...prev,
+                                        brandedContent: e.target.checked,
+                                        // 브랜디드 켜질 때 비공개면 공개범위 초기화
+                                        privacy: e.target.checked && prev.privacy === 'SELF_ONLY' ? '' : prev.privacy,
+                                      }))}
+                                    />
+                                    <span style={{ fontSize:11.5, color:'#1A2421', lineHeight:1.4 }}>
+                                      <b>브랜디드 콘텐츠</b> — 타사 유료 파트너십. <span style={{ color:'#6B7875' }}>'유료 광고'로 표시됩니다. (비공개 불가)</span>
+                                    </span>
+                                  </label>
+                                  {!ttPost.yourBrand && !ttPost.brandedContent && (
+                                    <div style={{ fontSize:10.5, color:'#EF6E6E', marginTop:6 }}>최소 하나를 선택해야 게시할 수 있어요.</div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* AI 생성 콘텐츠 라벨 */}
+                              <label style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10, cursor:'pointer' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={ttPost.aigc}
+                                  onChange={e => setTtPost(prev => ({ ...prev, aigc: e.target.checked }))}
+                                />
+                                <span style={{ fontSize:12, color:'#1A2421' }}>AI 생성 콘텐츠로 표시</span>
+                              </label>
+
+                              {/* 필수 동의 고지 */}
+                              <div style={{ fontSize:10.5, color:'#8A938F', lineHeight:1.5 }}>
+                                {ttPost.disclose && ttPost.brandedContent ? (
+                                  <>게시하면 TikTok의 <a href="https://www.tiktok.com/legal/page/global/bc-policy/en" target="_blank" rel="noopener noreferrer" style={{ color:'#1D9E75' }}>브랜디드 콘텐츠 정책</a> 및 <a href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en" target="_blank" rel="noopener noreferrer" style={{ color:'#1D9E75' }}>음원 사용 확인</a>에 동의합니다.</>
+                                ) : (
+                                  <>게시하면 TikTok의 <a href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en" target="_blank" rel="noopener noreferrer" style={{ color:'#1D9E75' }}>음원 사용 확인</a>에 동의합니다.</>
+                                )}
+                              </div>
+                            </>
+                          )}
+                        </div>
                       </>
                     )}
 
@@ -1641,9 +1835,14 @@ ${manualSub}`.trim()
               })}
             </div>
 
-            <PrimaryBtn onClick={handleUpload} disabled={uploading}>
+            <PrimaryBtn onClick={handleUpload} disabled={uploading || ttInvalid}>
               {uploading ? '업로드 중...' : `🚀 ${selectedPlatforms.length}개 채널 업로드`}
             </PrimaryBtn>
+            {ttInvalid && !uploading && (
+              <div style={{ fontSize:11, color:'#EF6E6E', textAlign:'center', marginTop:6 }}>
+                틱톡 게시 설정(공개 범위 등)을 완료해야 업로드할 수 있어요.
+              </div>
+            )}
             <GhostBtn onClick={() => { setStep(2); setGenProgress(0) }} style={{ marginTop:8 }}>← 영상 다시 만들기</GhostBtn>
           </>
         )}

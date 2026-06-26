@@ -3,6 +3,7 @@ import { getSession } from '../../../../lib/session'
 import { supabaseAdmin } from '../../../../lib/db'
 import {
   uploadTikTokVideo,
+  directPostTikTokVideo,
   refreshTikTokToken,
   getTikTokPostStatus,
 } from '../../../../lib/tiktok'
@@ -86,6 +87,23 @@ export async function POST(request) {
     const caption = formData.get('caption') || '고랑AI'
     if (!file && !videoUrl) return NextResponse.json({ error: '영상 파일 또는 URL 필요' }, { status: 400 })
 
+    // Direct Post 설정 (게시 화면에서 사용자가 선택). 없으면 기존 Inbox(드래프트) 방식으로 폴백.
+    const privacyLevel = formData.get('privacyLevel') || ''
+    const useDirectPost = formData.get('directPost') === 'true' && !!privacyLevel
+    const disableComment = formData.get('disableComment') === 'true'
+    const disableDuet = formData.get('disableDuet') === 'true'
+    const disableStitch = formData.get('disableStitch') === 'true'
+    const brandContent = formData.get('brandContent') === 'true'
+    const brandOrganic = formData.get('brandOrganic') === 'true'
+    const isAigc = formData.get('isAigc') === 'true'
+    // Branded Content는 비공개(SELF_ONLY) 게시 불가 (TikTok 정책)
+    if (useDirectPost && brandContent && privacyLevel === 'SELF_ONLY') {
+      return NextResponse.json(
+        { error: '브랜디드 콘텐츠는 비공개로 게시할 수 없어요. 공개범위를 바꿔주세요.' },
+        { status: 400 }
+      )
+    }
+
     const { data: user } = await supabaseAdmin
       .from('users')
       .select('tiktok_access_token, tiktok_refresh_token, tiktok_token_expiry')
@@ -140,12 +158,26 @@ export async function POST(request) {
       srcMeta = conv.meta
     }
 
-    const { publish_id } = await uploadTikTokVideo({
-      accessToken,
-      caption,
-      videoBuffer,
-      mimeType: 'video/mp4',
-    })
+    const { publish_id } = useDirectPost
+      ? await directPostTikTokVideo({
+          accessToken,
+          caption,
+          videoBuffer,
+          mimeType: 'video/mp4',
+          privacyLevel,
+          disableComment,
+          disableDuet,
+          disableStitch,
+          brandContentToggle: brandContent,
+          brandOrganicToggle: brandOrganic,
+          isAigc,
+        })
+      : await uploadTikTokVideo({
+          accessToken,
+          caption,
+          videoBuffer,
+          mimeType: 'video/mp4',
+        })
 
     // 영상 바이트 전송(PUT)은 완료됨. TikTok은 비동기로 처리/게시하므로
     // 짧게만 폴링하고(60초 제한 회피) 처리 중이면 성공(전송 완료)으로 응답.
@@ -191,7 +223,9 @@ export async function POST(request) {
         draft,
         note: draft
           ? '틱톡 앱 알림함으로 영상이 전송됐어요. 틱톡 앱에서 게시를 완료해주세요.'
-          : '틱톡에 게시됐어요.',
+          : useDirectPost && privacyLevel === 'SELF_ONLY'
+            ? '틱톡에 비공개로 게시됐어요. (audit 승인 후 공개 게시 가능)'
+            : '틱톡에 게시됐어요.',
       })
     }
     if (status === 'FAILED') {
