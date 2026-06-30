@@ -40,6 +40,17 @@ const PLATFORMS = [
   { id: 'xiaohongshu',   icon: '📕', name: '샤오홍수 小红书',   ratio: 'portrait',  ratioLabel: '세로 9:16' },
 ]
 
+// 채널별 연동 여부 판별 (/api/shop 응답 기준). 연동 안 된 채널은 영상만들기에서 선택 불가.
+const platformConnected = (id, shop) => {
+  if (id === 'youtube_shorts' || id === 'youtube') return !!shop.google_connected
+  if (id === 'instagram')   return !!shop.instagram_user_id
+  if (id === 'tiktok')      return !!shop.tiktok_open_id
+  if (id === 'facebook')    return !!shop.facebook_connected
+  if (id === 'line')        return !!shop.line_connected
+  if (id === 'xiaohongshu') return true   // 네이티브 공유, 연동 불필요
+  return true
+}
+
 const TITLE_FONT_OPTIONS = [
   { id: 'GowunBatang',  label: '고운바탕',  desc: '고운바탕 — 고급 명조체 (기본)',   css: "'Gowun Batang', serif" },
   { id: 'BlackHanSans', label: '블랙한산스', desc: '블랙한산스 — 굵고 임팩트 강한',  css: "'Black Han Sans', sans-serif" },
@@ -132,6 +143,7 @@ export default function VideoPage() {
   const [titleText, setTitleText] = useState('')
   const [titleFont, setTitleFont] = useState('GowunBatang')
   const [selectedPlatforms, setSelectedPlatforms] = useState(['youtube_shorts'])
+  const [shop, setShop] = useState({})
   const [generating, setGenerating] = useState(false)
   const [genProgress, setGenProgress] = useState(0)
   const [genMsg, setGenMsg] = useState('')
@@ -201,6 +213,16 @@ export default function VideoPage() {
     .then(d => { if (d.ok) setStreakInfo(d) })
     .catch(() => {})
 }, [])
+  // 연동 상태 로드 → 연동 안 된 플랫폼은 선택 해제
+  useEffect(() => {
+    fetch('/api/shop')
+      .then(r => r.json())
+      .then(s => {
+        setShop(s || {})
+        setSelectedPlatforms(prev => prev.filter(id => platformConnected(id, s || {})))
+      })
+      .catch(() => {})
+  }, [])
   // 주제목 변경 시 플랫폼 캡션 초기화
   useEffect(() => {
     if (titleText !== prevTitleRef.current && Object.keys(platformCaptions).length > 0) {
@@ -250,7 +272,10 @@ useEffect(() => {
     ;[arr[idx], arr[ni]] = [arr[ni], arr[idx]]
     return arr
   })
-  const togglePlatform = id => setSelectedPlatforms(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id])
+  const togglePlatform = id => {
+    if (!platformConnected(id, shop)) { router.push('/connect'); return }  // 미연동 → 연동 페이지로 안내
+    setSelectedPlatforms(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id])
+  }
 
   const runAICaption = async (prompt) => {
     setManualMode(false)
@@ -1087,18 +1112,29 @@ ${manualSub}`.trim()
 
             <div style={{ marginBottom:14 }}>
               <div style={{ fontSize:11, color:'#6B7875', fontWeight:500, marginBottom:8 }}>📤 업로드 플랫폼</div>
-              {PLATFORMS.map(p => (
+              {PLATFORMS.map(p => {
+                const connected = platformConnected(p.id, shop)
+                const selected = selectedPlatforms.includes(p.id)
+                return (
                 <div key={p.id} onClick={() => togglePlatform(p.id)}
-                  style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 12px', marginBottom:6, borderRadius:10, border:`1.5px solid ${selectedPlatforms.includes(p.id)?'#1D9E75':'#E6EAE8'}`, background: selectedPlatforms.includes(p.id)?'#E1F5EE':'#fff', cursor:'pointer' }}>
+                  title={connected ? '' : '연동 후 선택할 수 있어요'}
+                  style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 12px', marginBottom:6, borderRadius:10, border:`1.5px solid ${selected?'#1D9E75':'#E6EAE8'}`, background: selected?'#E1F5EE':'#fff', cursor: connected?'pointer':'not-allowed', opacity: connected?1:0.55 }}>
                   <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                    <input type="checkbox" checked={selectedPlatforms.includes(p.id)} readOnly style={{ width:15, height:15, accentColor:'#1D9E75' }} />
+                    <input type="checkbox" checked={selected} readOnly disabled={!connected} style={{ width:15, height:15, accentColor:'#1D9E75' }} />
                     <span style={{ fontSize:13, color:'#1A2421', fontWeight:500 }}>{p.icon} {p.name}</span>
                   </div>
-                  <span style={{ fontSize:11, color: selectedPlatforms.includes(p.id)?'#0F6E56':'#B0BAB6', fontWeight:600, background: selectedPlatforms.includes(p.id)?'#C8EFE0':'#F4F6F5', padding:'3px 8px', borderRadius:8 }}>
-                    {p.ratioLabel}
-                  </span>
+                  {connected ? (
+                    <span style={{ fontSize:11, color: selected?'#0F6E56':'#B0BAB6', fontWeight:600, background: selected?'#C8EFE0':'#F4F6F5', padding:'3px 8px', borderRadius:8 }}>
+                      {p.ratioLabel}
+                    </span>
+                  ) : (
+                    <span style={{ fontSize:11, color:'#C2410C', fontWeight:700, background:'#FFF1E6', padding:'3px 8px', borderRadius:8 }}>
+                      🔗 연동 필요
+                    </span>
+                  )}
                 </div>
-              ))}
+                )
+              })}
             </div>
 
             <div style={{ marginBottom:14 }}>

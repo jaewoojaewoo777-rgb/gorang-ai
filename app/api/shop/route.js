@@ -53,5 +53,7 @@ export async function GET() {
     tripadvisor_location_id: data.tripadvisor_location_id ?? null,
     tripadvisor_location_name: data.tripadvisor_location_name ?? null,
     google_connected: !!data.google_id,
+    facebook_connected: !!data.fb_page_id,
+    line_connected: !!data.line_channel_access_token,
   })
 }

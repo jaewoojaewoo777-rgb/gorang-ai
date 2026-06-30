@@ -58,7 +58,9 @@ export default function LandingPage() {
   if (!ready) {
     return (
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1D9E75' }}>
-        <div style={{ fontSize: 48 }}>🌿</div>
+        <div style={{ background: '#fff', borderRadius: 20, padding: 16, display: 'flex', boxShadow: '0 6px 24px rgba(0,0,0,.12)' }}>
+          <img src="/logo.png" alt="고랑AI" style={{ height: 96, width: 'auto', display: 'block' }} />
+        </div>
       </div>
     )
   }
@@ -68,10 +70,9 @@ export default function LandingPage() {
 
       {/* ── 헤더 ── */}
       <div style={{ position: 'sticky', top: 0, zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', borderBottom: '1px solid #F0F2F1' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 22 }}>🌿</span>
-          <span style={{ fontSize: 18, fontWeight: 900, color: '#1A2421', letterSpacing: '-0.5px', fontFamily: 'Noto Sans KR, sans-serif' }}>고랑AI</span>
-        </div>
+        <a href="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
+          <img src="/logo.png" alt="고랑AI" style={{ height: 38, width: 'auto', display: 'block' }} />
+        </a>
         <a href="/api/auth/google" style={{ textDecoration: 'none' }}>
           <button style={{ padding: '8px 20px', borderRadius: 20, border: '1.5px solid #1D9E75', background: '#fff', color: '#1D9E75', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
             로그인
@@ -209,7 +210,9 @@ export default function LandingPage() {
 
       {/* ── 푸터 ── */}
       <div style={{ background: '#0A1F19', padding: '28px 24px 36px', textAlign: 'center' }}>
-        <div style={{ fontSize: 13, fontWeight: 800, color: 'rgba(255,255,255,.9)', marginBottom: 14, letterSpacing: '-0.3px', fontFamily: 'Noto Sans KR, sans-serif' }}>🌿 고랑AI</div>
+        <div style={{ display: 'inline-flex', background: '#fff', borderRadius: 10, padding: '8px 12px', marginBottom: 14, boxShadow: '0 2px 10px rgba(0,0,0,.18)' }}>
+          <img src="/logo.png" alt="고랑AI" style={{ height: 34, width: 'auto', display: 'block' }} />
+        </div>
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 14, marginBottom: 14 }}>
           <a href="/privacy" style={{ fontSize: 12, color: 'rgba(255,255,255,.8)', textDecoration: 'underline', fontWeight: 600, fontFamily: 'Noto Sans KR, sans-serif' }}>개인정보처리방침</a>
           <span style={{ color: 'rgba(255,255,255,.3)' }}>·</span>
