@@ -52,7 +52,8 @@ export async function GET() {
     instagram_user_id: data.instagram_user_id ?? null,
     tripadvisor_location_id: data.tripadvisor_location_id ?? null,
     tripadvisor_location_name: data.tripadvisor_location_name ?? null,
-    google_connected: !!data.google_id,
+    // 유튜브/구글 연동 여부는 토큰 보유 기준 (연동해제 시 토큰만 비우므로 로그인은 유지되고 상태만 풀림)
+    google_connected: !!data.google_access_token,
     facebook_connected: !!data.fb_page_id,
     line_connected: !!data.line_channel_access_token,
   })

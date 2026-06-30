@@ -6,36 +6,39 @@ import { BottomNav, Card, PrimaryBtn } from '../../components/ui'
 export default function SettingsPage() {
   const router = useRouter()
   const [shop, setShop] = useState({})
-  const [disconnecting, setDisconnecting] = useState(false)
+  const [busy, setBusy] = useState(null)   // 연동해제 처리중인 platform key
 
-  useEffect(() => {
-    fetch('/api/shop').then(r => r.json()).then(setShop).catch(() => {})
-  }, [])
+  const loadShop = () => fetch('/api/shop').then(r => r.json()).then(setShop).catch(() => {})
+  useEffect(() => { loadShop() }, [])
 
-  const gbConnected = !!(shop.gbp_location_id || shop.gbp_account_id)
-  const ttConnected = !!shop.tiktok_open_id
-  const ytConnected = !!shop.google_connected
+  // 모든 플랫폼 공통 — 틱톡과 동일한 '연동해제' 방식으로 통일
+  const CONNECTIONS = [
+    { key: 'google',      icon: '▶️', name: 'YouTube · 구글리뷰',   connected: !!shop.google_connected,       reconnect: () => { window.location.href = '/api/auth/google?reauth=1' } },
+    { key: 'instagram',   icon: '📸', name: '인스타그램 · 페이스북', connected: !!shop.instagram_user_id,       reconnect: () => { window.location.href = '/api/auth/meta' } },
+    { key: 'tiktok',      icon: '🎵', name: 'TikTok',               connected: !!shop.tiktok_open_id,          reconnect: () => { window.location.href = '/api/auth/tiktok' } },
+    { key: 'line',        icon: '💚', name: 'LINE',                 connected: !!shop.line_connected,          reconnect: () => router.push('/connect') },
+    { key: 'tripadvisor', icon: '🦉', name: '트립어드바이저',        connected: !!shop.tripadvisor_location_id, reconnect: () => router.push('/connect') },
+  ]
 
-  function handleYouTubeReauth() {
-    if (!confirm('유튜브에 올릴 채널을 다시 선택합니다.\n다음 화면에서 같은 구글 계정으로 로그인한 뒤, 올바른 채널(예: 제주핀)을 선택하세요.')) return
-    window.location.href = '/api/auth/google?reauth=1'
-  }
-
-  async function handleTikTokDisconnect() {
-    if (!confirm('TikTok 연동을 해제하시겠어요?\n해제 후 다시 연동할 수 있습니다.')) return
-    setDisconnecting(true)
+  async function handleDisconnect(key, name) {
+    if (!confirm(`${name} 연동을 해제하시겠어요?\n해제 후 다시 연동할 수 있습니다.`)) return
+    setBusy(key)
     try {
-      const res = await fetch('/api/tiktok/disconnect', { method: 'POST' })
+      const res = await fetch('/api/connections/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ platform: key }),
+      })
       if (res.ok) {
-        setShop(prev => ({ ...prev, tiktok_open_id: null, tiktok_access_token: null, tiktok_refresh_token: null }))
-        alert('TikTok 연동이 해제되었습니다.')
+        await loadShop()
+        alert(`${name} 연동이 해제되었습니다.`)
       } else {
         alert('연동 해제에 실패했습니다. 다시 시도해주세요.')
       }
     } catch (e) {
       alert('오류가 발생했습니다.')
     } finally {
-      setDisconnecting(false)
+      setBusy(null)
     }
   }
 
@@ -62,69 +65,30 @@ export default function SettingsPage() {
         <Card style={{ marginBottom:12 }}>
           <div style={{ fontSize:12, fontWeight:700, color:'#1A2421', marginBottom:10 }}>연동된 계정</div>
 
-          {/* Google 비즈니스 */}
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'7px 0', borderBottom:'1px solid #F4F6F5' }}>
-            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <span>🔵</span>
-              <span style={{ fontSize:13, color:'#1A2421' }}>Google 비즈니스</span>
+          {CONNECTIONS.map((c, i) => (
+            <div key={c.key} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'7px 0', borderBottom: i < CONNECTIONS.length - 1 ? '1px solid #F4F6F5' : 'none' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <span>{c.icon}</span>
+                <span style={{ fontSize:13, color:'#1A2421' }}>{c.name}</span>
+              </div>
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <span style={{ fontSize:11, color: c.connected ? '#1D9E75' : '#B0BAB6', fontWeight:600 }}>
+                  {c.connected ? '✓ 연동됨' : '연동 필요'}
+                </span>
+                {c.connected ? (
+                  <button onClick={() => handleDisconnect(c.key, c.name)} disabled={busy === c.key}
+                    style={{ fontSize:10, color:'#fff', background:'#E53935', border:'none', borderRadius:6, padding:'3px 8px', cursor:'pointer', fontWeight:600, fontFamily:'Noto Sans KR, sans-serif' }}>
+                    {busy === c.key ? '해제중...' : '연동해제'}
+                  </button>
+                ) : (
+                  <button onClick={c.reconnect}
+                    style={{ fontSize:10, color:'#fff', background:'#1D9E75', border:'none', borderRadius:6, padding:'3px 8px', cursor:'pointer', fontWeight:600, fontFamily:'Noto Sans KR, sans-serif' }}>
+                    연동하기
+                  </button>
+                )}
+              </div>
             </div>
-            <span style={{ fontSize:11, color: gbConnected ? '#1D9E75' : '#B0BAB6', fontWeight:600 }}>
-              {gbConnected ? '✓ 연동됨' : '연동 필요'}
-            </span>
-          </div>
-
-          {/* YouTube — 잘못된 채널 연결 시 '채널 변경'으로 다시 선택 */}
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'7px 0', borderBottom:'1px solid #F4F6F5' }}>
-            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <span>▶️</span>
-              <span style={{ fontSize:13, color:'#1A2421' }}>YouTube</span>
-            </div>
-            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <span style={{ fontSize:11, color: ytConnected ? '#1D9E75' : '#B0BAB6', fontWeight:600 }}>
-                {ytConnected ? '✓ 연동됨' : '연동 필요'}
-              </span>
-              <button
-                onClick={handleYouTubeReauth}
-                style={{ fontSize:10, color:'#fff', background:'#1D9E75', border:'none', borderRadius:6, padding:'3px 8px', cursor:'pointer', fontWeight:600, fontFamily:'Noto Sans KR, sans-serif' }}>
-                {ytConnected ? '채널 변경' : '연동하기'}
-              </button>
-            </div>
-          </div>
-
-          {/* Instagram */}
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'7px 0', borderBottom:'1px solid #F4F6F5' }}>
-            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <span>📸</span>
-              <span style={{ fontSize:13, color:'#1A2421' }}>Instagram</span>
-            </div>
-            <span style={{ fontSize:11, color:'#EF9F27', fontWeight:600 }}>심사 중</span>
-          </div>
-
-          {/* TikTok */}
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'7px 0', borderBottom:'1px solid #F4F6F5' }}>
-            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <span>🎵</span>
-              <span style={{ fontSize:13, color:'#1A2421' }}>TikTok</span>
-            </div>
-            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <span style={{ fontSize:11, color: ttConnected ? '#1D9E75' : '#B0BAB6', fontWeight:600 }}>
-                {ttConnected ? '✓ 연동됨' : '연동 필요'}
-              </span>
-              {ttConnected && (
-                <button
-                  onClick={handleTikTokDisconnect}
-                  disabled={disconnecting}
-                  style={{ fontSize:10, color:'#fff', background:'#E53935', border:'none', borderRadius:6, padding:'3px 8px', cursor:'pointer', fontWeight:600, fontFamily:'Noto Sans KR, sans-serif' }}>
-                  {disconnecting ? '해제중...' : '연동해제'}
-                </button>
-              )}
-            </div>
-          </div>
-
-          <button onClick={() => router.push('/connect')}
-            style={{ fontSize:12, color:'#1D9E75', fontWeight:600, background:'none', border:'none', cursor:'pointer', padding:'8px 0 0', fontFamily:'Noto Sans KR, sans-serif' }}>
-            계정 추가 연동 →
-          </button>
+          ))}
         </Card>
 
         <div style={{ background:'#F4F6F5', borderRadius:14, padding:'14px 16px', marginBottom:12 }}>
