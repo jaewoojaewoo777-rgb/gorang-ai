@@ -14,6 +14,12 @@ export default function SettingsPage() {
 
   const gbConnected = !!(shop.gbp_location_id || shop.gbp_account_id)
   const ttConnected = !!shop.tiktok_open_id
+  const ytConnected = !!shop.google_connected
+
+  function handleYouTubeReauth() {
+    if (!confirm('유튜브에 올릴 채널을 다시 선택합니다.\n다음 화면에서 같은 구글 계정으로 로그인한 뒤, 올바른 채널(예: 제주핀)을 선택하세요.')) return
+    window.location.href = '/api/auth/google?reauth=1'
+  }
 
   async function handleTikTokDisconnect() {
     if (!confirm('TikTok 연동을 해제하시겠어요?\n해제 후 다시 연동할 수 있습니다.')) return
@@ -65,6 +71,24 @@ export default function SettingsPage() {
             <span style={{ fontSize:11, color: gbConnected ? '#1D9E75' : '#B0BAB6', fontWeight:600 }}>
               {gbConnected ? '✓ 연동됨' : '연동 필요'}
             </span>
+          </div>
+
+          {/* YouTube — 잘못된 채널 연결 시 '채널 변경'으로 다시 선택 */}
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'7px 0', borderBottom:'1px solid #F4F6F5' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <span>▶️</span>
+              <span style={{ fontSize:13, color:'#1A2421' }}>YouTube</span>
+            </div>
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <span style={{ fontSize:11, color: ytConnected ? '#1D9E75' : '#B0BAB6', fontWeight:600 }}>
+                {ytConnected ? '✓ 연동됨' : '연동 필요'}
+              </span>
+              <button
+                onClick={handleYouTubeReauth}
+                style={{ fontSize:10, color:'#fff', background:'#1D9E75', border:'none', borderRadius:6, padding:'3px 8px', cursor:'pointer', fontWeight:600, fontFamily:'Noto Sans KR, sans-serif' }}>
+                {ytConnected ? '채널 변경' : '연동하기'}
+              </button>
+            </div>
           </div>
 
           {/* Instagram */}
