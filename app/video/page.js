@@ -115,6 +115,26 @@ const SUB_INFO = `📌 예쁜 캡션을 위한 팁
 
 const CHARS_PER_PHOTO = 45
 
+// 업로드 사진 → 긴 변 768px, JPEG 0.7 압축 base64 (Vision 전송용, body 413 방지)
+function resizeToBase64(file, MAX = 768) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      let { width, height } = img
+      if (width > height && width > MAX) { height = Math.round(height * MAX / width); width = MAX }
+      else if (height >= width && height > MAX) { width = Math.round(width * MAX / height); height = MAX }
+      const canvas = document.createElement('canvas')
+      canvas.width = width; canvas.height = height
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height)
+      resolve(canvas.toDataURL('image/jpeg', 0.7).split(',')[1])
+    }
+    img.onerror = reject
+    img.src = url
+  })
+}
+
 function extractSection(captionText, section) {
   if (!captionText) return ''
   const sectionMap = {
@@ -150,6 +170,8 @@ export default function VideoPage() {
   const [guideOpen, setGuideOpen] = useState(false)
   const [guideBiz, setGuideBiz] = useState(null)
   const [previews, setPreviews] = useState([])
+  const [photoCheck, setPhotoCheck] = useState([])
+  const [checkingPhotos, setCheckingPhotos] = useState(false)
   const [videoFile, setVideoFile] = useState(null)
   const [videoPreview, setVideoPreview] = useState(null)
   // 사진+영상 혼합 모드: 순서 유지되는 통합 리스트 [{type:'photo'|'video', file, preview}]
@@ -274,6 +296,28 @@ useEffect(() => {
     const sel = Array.from(e.target.files)
     setFiles(p => [...p, ...sel])
     setPreviews(p => [...p, ...sel.map(f => URL.createObjectURL(f))])
+    setPhotoCheck([])  // 사진 바뀌면 이전 점검결과 무효화
+  }
+  // 입력 게이트: 현재 올린 사진을 AI로 품질 점검 (경고형, 업로드는 계속 가능)
+  const runPhotoCheck = async () => {
+    if (!files.length) return
+    setCheckingPhotos(true); setPhotoCheck([])
+    try {
+      const b64s = []
+      for (const f of files.slice(0, 6)) b64s.push(await resizeToBase64(f))
+      const res = await fetch('/api/photos/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64List: b64s }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || '점검 실패')
+      setPhotoCheck(data.results || [])
+    } catch {
+      alert('사진 점검에 실패했어요. 잠시 후 다시 시도해주세요.')
+    } finally {
+      setCheckingPhotos(false)
+    }
   }
   const handleVideo = e => {
     const f = e.target.files[0]; if (!f) return
@@ -1065,7 +1109,7 @@ ${manualSub}`.trim()
                     {previews.map((p, i) => (
                       <div key={i} style={{ position:'relative', borderRadius:8, overflow:'hidden', aspectRatio:'1' }}>
                         <img src={p} style={{ width:'100%', height:'100%', objectFit:'cover' }} alt="" />
-                        <button onClick={() => { setFiles(f=>f.filter((_,j)=>j!==i)); setPreviews(pv=>pv.filter((_,j)=>j!==i)) }}
+                        <button onClick={() => { setFiles(f=>f.filter((_,j)=>j!==i)); setPreviews(pv=>pv.filter((_,j)=>j!==i)); setPhotoCheck([]) }}
                           style={{ position:'absolute', top:2, right:2, width:18, height:18, borderRadius:'50%', background:'rgba(0,0,0,.65)', color:'#fff', border:'none', cursor:'pointer', fontSize:10, lineHeight:'18px', textAlign:'center' }}>✕</button>
                       </div>
                     ))}
@@ -1073,6 +1117,30 @@ ${manualSub}`.trim()
                       style={{ borderRadius:8, border:'2px dashed #B0BAB6', display:'flex', alignItems:'center', justifyContent:'center', aspectRatio:'1', cursor:'pointer', background:'#F4F6F5' }}>
                       <span style={{ fontSize:18, color:'#B0BAB6' }}>+</span>
                     </div>
+                  </div>
+                )}
+                {files.length > 0 && (
+                  <div style={{ marginBottom:12 }}>
+                    <button onClick={runPhotoCheck} disabled={checkingPhotos}
+                      style={{ width:'100%', padding:'10px', borderRadius:10, border:'1.5px solid #1D9E75', background:'#fff', color:'#1D9E75', fontSize:12.5, fontWeight:700, cursor: checkingPhotos?'default':'pointer', fontFamily:'Noto Sans KR, sans-serif', opacity: checkingPhotos?0.6:1 }}>
+                      {checkingPhotos ? '점검 중…' : '🔍 AI 사진 점검 (선택) — 흐림·어두움·기울어짐 체크'}
+                    </button>
+                    {photoCheck.length > 0 && (
+                      <div style={{ marginTop:8, display:'flex', flexDirection:'column', gap:5 }}>
+                        {photoCheck.map((r, i) => (
+                          <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:6, fontSize:11.5, lineHeight:1.5, padding:'7px 9px', borderRadius:8, background: r.verdict==='ok' ? '#F1F9F5' : '#FFF7E8', color: r.verdict==='ok' ? '#0F6E56' : '#A86A12' }}>
+                            <span>{r.verdict==='ok' ? '✅' : '⚠️'}</span>
+                            <span><b>{i+1}번</b> {r.reason}</span>
+                          </div>
+                        ))}
+                        {files.length > 6 && (
+                          <div style={{ fontSize:10.5, color:'#B0BAB6', marginTop:2 }}>* 앞 6장만 점검했어요.</div>
+                        )}
+                        {photoCheck.some(r => r.verdict==='retake') && (
+                          <div style={{ fontSize:10.5, color:'#8A938F', marginTop:2 }}>⚠️ 표시된 사진은 교체를 권해요. 그대로 진행해도 업로드는 됩니다.</div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </>
