@@ -84,6 +84,30 @@ const PROMPT_EXAMPLES = [
   },
 ]
 
+const SHOOT_GUIDE = [
+  { id: 'cafe', emoji: '☕', name: '카페', shots: [
+    '시그니처 음료 위에서 (탑뷰)',
+    '창가·테라스 자리 인테리어',
+    '디저트 클로즈업',
+    '음료 든 손 + 배경 흐림',
+    '가게 외관·간판',
+  ] },
+  { id: 'pension', emoji: '🏡', name: '펜션·숙소', shots: [
+    '정돈된 객실 전경 (+ 창밖 뷰)',
+    '테라스·오션뷰',
+    '조식·웰컴 세팅',
+    '어메니티 디테일',
+    '노을·야경',
+  ] },
+  { id: 'food', emoji: '🍽️', name: '식당', shots: [
+    '대표메뉴 탑뷰',
+    '김 나는·지글지글 순간',
+    '상차림 전체',
+    '한 입 클로즈업',
+    '가게 분위기',
+  ] },
+]
+
 const SUB_INFO = `📌 예쁜 캡션을 위한 팁
 • 첫 문장은 '훅' — 감정을 자극하거나 질문형으로 (스크롤 멈추게)
 • 짧고 구체적으로 (장소·메뉴·분위기 키워드)
@@ -123,6 +147,8 @@ export default function VideoPage() {
   const [mode, setMode] = useState(null)
   const [step, setStep] = useState(1)
   const [files, setFiles] = useState([])
+  const [guideOpen, setGuideOpen] = useState(false)
+  const [guideBiz, setGuideBiz] = useState(null)
   const [previews, setPreviews] = useState([])
   const [videoFile, setVideoFile] = useState(null)
   const [videoPreview, setVideoPreview] = useState(null)
@@ -1108,6 +1134,47 @@ ${manualSub}`.trim()
                   </div>
                 )}
               </>
+            )}
+
+            {(mode === 'photos' || mode === 'mix') && (
+              <div style={{ marginBottom:14, border:'1.5px solid #E6EAE8', borderRadius:12, overflow:'hidden' }}>
+                <div onClick={() => setGuideOpen(o => !o)}
+                  style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 14px', cursor:'pointer', background:'#F4F6F5' }}>
+                  <span style={{ fontSize:12.5, color:'#1A2421', fontWeight:700 }}>📸 사진 잘 찍는 법 — 영상 퀄리티가 확 올라가요</span>
+                  <span style={{ fontSize:12, color:'#6B7875' }}>{guideOpen ? '▲' : '▼'}</span>
+                </div>
+                {guideOpen && (
+                  <div style={{ padding:'12px 14px', borderTop:'1px solid #E6EAE8' }}>
+                    <div style={{ fontSize:11.5, color:'#1A2421', fontWeight:700, marginBottom:6 }}>기본 3가지만 지켜요</div>
+                    <div style={{ fontSize:11.5, color:'#4A5551', lineHeight:1.8, marginBottom:12 }}>
+                      ☀️ <b>자연광</b> — 창가·야외, 오후 4~5시 골든아워 <span style={{ color:'#B0BAB6' }}>(어두운 실내+플래시 ✕)</span><br />
+                      📐 <b>수평 맞추기</b> — 폰 격자선 켜고 삐뚤지 않게<br />
+                      🎯 <b>한 컷에 주인공 하나</b> — 배경 잡동사니 치우기
+                    </div>
+                    <div style={{ fontSize:11.5, color:'#1A2421', fontWeight:700, marginBottom:6 }}>업종별 &ldquo;이 5장만&rdquo; 찍으세요</div>
+                    {SHOOT_GUIDE.map(biz => (
+                      <div key={biz.id} style={{ marginBottom:6, border:'1px solid #E6EAE8', borderRadius:8, overflow:'hidden' }}>
+                        <div onClick={() => setGuideBiz(b => b === biz.id ? null : biz.id)}
+                          style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'8px 10px', cursor:'pointer', background:'#fff' }}>
+                          <span style={{ fontSize:12, color:'#1A2421', fontWeight:600 }}>{biz.emoji} {biz.name}</span>
+                          <span style={{ fontSize:13, color:'#B0BAB6' }}>{guideBiz === biz.id ? '−' : '+'}</span>
+                        </div>
+                        {guideBiz === biz.id && (
+                          <ol style={{ margin:0, padding:'2px 10px 10px 28px', fontSize:11.5, color:'#4A5551', lineHeight:1.9 }}>
+                            {biz.shots.map((s, i) => <li key={i}>{s}</li>)}
+                          </ol>
+                        )}
+                      </div>
+                    ))}
+                    <div style={{ fontSize:11, color:'#C0392B', background:'#FFF0F0', borderRadius:8, padding:'8px 10px', marginTop:10, lineHeight:1.6 }}>
+                      ✕ 어두운 데서 플래시 · 기울어진 사진 · 잡동사니 배경 · 역광 · 흔들림
+                    </div>
+                    <div style={{ fontSize:11, color:'#6B7875', marginTop:8 }}>
+                      💡 많이보다 <b>좋은 4~5장</b>이면 충분해요.
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
 
             <div style={{ marginBottom:14 }}>
