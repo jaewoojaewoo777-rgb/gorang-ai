@@ -135,6 +135,66 @@ function resizeToBase64(file, MAX = 768) {
   })
 }
 
+// 영상 → 대표 프레임 1장(base64, 채점용) + 해상도 + 움직임(흔들림) 지표
+// 짧은 클립 특성상 25/50/75% 지점 3프레임을 뽑아 인접 프레임 평균차로 움직임 계산
+function analyzeVideo(file) {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video')
+    video.preload = 'metadata'; video.muted = true; video.playsInline = true
+    const url = URL.createObjectURL(file)
+    const fail = e => { URL.revokeObjectURL(url); reject(e || new Error('영상 분석 실패')) }
+    video.onerror = () => fail()
+    video.onloadedmetadata = async () => {
+      try {
+        const width = video.videoWidth, height = video.videoHeight, duration = video.duration || 0
+        const MAX = 768
+        let scale = 1
+        if (width > height && width > MAX) scale = MAX / width
+        else if (height >= width && height > MAX) scale = MAX / height
+        const fw = Math.max(1, Math.round(width * scale)), fh = Math.max(1, Math.round(height * scale))
+        const canvas = document.createElement('canvas'); canvas.width = fw; canvas.height = fh
+        const ctx = canvas.getContext('2d')
+        const SW = 48, SH = 48
+        const sc = document.createElement('canvas'); sc.width = SW; sc.height = SH
+        const sctx = sc.getContext('2d')
+        const seekTo = t => new Promise(res => {
+          const target = Math.min(Math.max(0, t), Math.max(0, duration - 0.05))
+          if (Math.abs(video.currentTime - target) < 0.02) return res()
+          const onSeek = () => { video.removeEventListener('seeked', onSeek); res() }
+          video.addEventListener('seeked', onSeek)
+          video.currentTime = target
+        })
+        const stamps = duration > 0.6 ? [duration * 0.25, duration * 0.5, duration * 0.75] : [0, 0, 0]
+        const grays = []
+        let frameB64 = null
+        for (let k = 0; k < stamps.length; k++) {
+          await seekTo(stamps[k])
+          if (k === 1) {
+            ctx.drawImage(video, 0, 0, fw, fh)
+            frameB64 = canvas.toDataURL('image/jpeg', 0.7).split(',')[1]
+          }
+          sctx.drawImage(video, 0, 0, SW, SH)
+          const d = sctx.getImageData(0, 0, SW, SH).data
+          const g = new Float32Array(SW * SH)
+          for (let i = 0, p = 0; i < d.length; i += 4, p++) g[p] = d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11
+          grays.push(g)
+        }
+        if (!frameB64) { ctx.drawImage(video, 0, 0, fw, fh); frameB64 = canvas.toDataURL('image/jpeg', 0.7).split(',')[1] }
+        let movement = 0, cnt = 0
+        for (let k = 1; k < grays.length; k++) {
+          let sum = 0
+          for (let p = 0; p < grays[k].length; p++) sum += Math.abs(grays[k][p] - grays[k - 1][p])
+          movement += sum / grays[k].length; cnt++
+        }
+        movement = cnt ? movement / cnt : 0
+        URL.revokeObjectURL(url)
+        resolve({ width, height, duration, frameB64, movement })
+      } catch (e) { fail(e) }
+    }
+    video.src = url
+  })
+}
+
 function extractSection(captionText, section) {
   if (!captionText) return ''
   const sectionMap = {
@@ -172,6 +232,8 @@ export default function VideoPage() {
   const [previews, setPreviews] = useState([])
   const [photoCheck, setPhotoCheck] = useState([])
   const [checkingPhotos, setCheckingPhotos] = useState(false)
+  const [mixCheck, setMixCheck] = useState([])
+  const [checkingMix, setCheckingMix] = useState(false)
   const [videoFile, setVideoFile] = useState(null)
   const [videoPreview, setVideoPreview] = useState(null)
   // 사진+영상 혼합 모드: 순서 유지되는 통합 리스트 [{type:'photo'|'video', file, preview}]
@@ -319,6 +381,47 @@ useEffect(() => {
       setCheckingPhotos(false)
     }
   }
+  // mix 모드 입력 게이트: 사진은 Vision 채점, 영상은 대표프레임 채점 + 해상도/흔들림 결합
+  const runMixCheck = async () => {
+    if (!mixItems.length) return
+    setCheckingMix(true); setMixCheck([])
+    try {
+      const units = []
+      for (let i = 0; i < mixItems.length && units.length < 6; i++) {
+        const it = mixItems[i]
+        if (it.type === 'photo') {
+          units.push({ idx: i, type: 'photo', b64: await resizeToBase64(it.file) })
+        } else {
+          const v = await analyzeVideo(it.file)
+          units.push({ idx: i, type: 'video', b64: v.frameB64, width: v.width, height: v.height, movement: v.movement })
+        }
+      }
+      const res = await fetch('/api/photos/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64List: units.map(u => u.b64) }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || '점검 실패')
+      const vision = data.results || []
+      setMixCheck(units.map((u, k) => {
+        const v = vision[k] || { verdict: 'ok', reason: '' }
+        const notes = []
+        let retake = v.verdict === 'retake'
+        if (u.type === 'video') {
+          const shortSide = Math.min(u.width || 0, u.height || 0)
+          if (shortSide && shortSide < 720) { retake = true; notes.push(`해상도 낮음 (${u.width}×${u.height}, 720p 미만)`) }
+          if (u.movement > 18) { retake = true; notes.push('카메라 움직임이 커요 (흔들림 의심)') }
+        }
+        const reason = [v.reason, ...notes].filter(Boolean).join(' · ')
+        return { idx: u.idx, type: u.type, verdict: retake ? 'retake' : 'ok', reason }
+      }))
+    } catch {
+      alert('점검에 실패했어요. 잠시 후 다시 시도해주세요.')
+    } finally {
+      setCheckingMix(false)
+    }
+  }
   const handleVideo = e => {
     const f = e.target.files[0]; if (!f) return
     setVideoFile(f); setVideoPreview(URL.createObjectURL(f))
@@ -327,21 +430,23 @@ useEffect(() => {
   const handleMixPhotos = e => {
     const sel = Array.from(e.target.files)
     setMixItems(p => [...p, ...sel.map(f => ({ type:'photo', file:f, preview:URL.createObjectURL(f) }))])
+    setMixCheck([])
     e.target.value = ''
   }
   const handleMixVideo = e => {
     const sel = Array.from(e.target.files)
     setMixItems(p => [...p, ...sel.map(f => ({ type:'video', file:f, preview:URL.createObjectURL(f) }))])
+    setMixCheck([])
     e.target.value = ''
   }
-  const removeMixItem = (idx) => setMixItems(p => p.filter((_, j) => j !== idx))
-  const moveMixItem = (idx, dir) => setMixItems(p => {
+  const removeMixItem = (idx) => { setMixItems(p => p.filter((_, j) => j !== idx)); setMixCheck([]) }
+  const moveMixItem = (idx, dir) => { setMixCheck([]); setMixItems(p => {
     const arr = [...p]
     const ni = idx + dir
     if (ni < 0 || ni >= arr.length) return p
     ;[arr[idx], arr[ni]] = [arr[ni], arr[idx]]
     return arr
-  })
+  }) }
   const togglePlatform = id => {
     if (!platformConnected(id, shop)) { router.push('/connect'); return }  // 미연동 → 연동 페이지로 안내
     setSelectedPlatforms(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id])
@@ -1199,6 +1304,30 @@ ${manualSub}`.trim()
                           style={{ width:26, height:26, borderRadius:6, border:'none', background:'rgba(0,0,0,.06)', color:'#888', cursor:'pointer', fontSize:12 }}>✕</button>
                       </div>
                     ))}
+                  </div>
+                )}
+                {mixItems.length > 0 && (
+                  <div style={{ marginBottom:12 }}>
+                    <button onClick={runMixCheck} disabled={checkingMix}
+                      style={{ width:'100%', padding:'10px', borderRadius:10, border:'1.5px solid #1D9E75', background:'#fff', color:'#1D9E75', fontSize:12.5, fontWeight:700, cursor: checkingMix?'default':'pointer', fontFamily:'Noto Sans KR, sans-serif', opacity: checkingMix?0.6:1 }}>
+                      {checkingMix ? '점검 중… (영상은 조금 걸려요)' : '🔍 AI 점검 (선택) — 사진·영상 화질/흔들림 체크'}
+                    </button>
+                    {mixCheck.length > 0 && (
+                      <div style={{ marginTop:8, display:'flex', flexDirection:'column', gap:5 }}>
+                        {mixCheck.map((r, k) => (
+                          <div key={k} style={{ display:'flex', alignItems:'flex-start', gap:6, fontSize:11.5, lineHeight:1.5, padding:'7px 9px', borderRadius:8, background: r.verdict==='ok' ? '#F1F9F5' : '#FFF7E8', color: r.verdict==='ok' ? '#0F6E56' : '#A86A12' }}>
+                            <span>{r.verdict==='ok' ? '✅' : '⚠️'}</span>
+                            <span><b>{r.idx+1}번 {r.type==='photo'?'📷':'🎬'}</b> {r.reason}</span>
+                          </div>
+                        ))}
+                        {mixItems.length > 6 && (
+                          <div style={{ fontSize:10.5, color:'#B0BAB6', marginTop:2 }}>* 앞 6개만 점검했어요.</div>
+                        )}
+                        {mixCheck.some(r => r.verdict==='retake') && (
+                          <div style={{ fontSize:10.5, color:'#8A938F', marginTop:2 }}>⚠️ 표시된 건 교체를 권해요. 자막만 입히려면 그대로 진행해도 됩니다.</div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </>
