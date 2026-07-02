@@ -1540,24 +1540,24 @@ ${manualSub}`.trim()
             <div style={{ fontSize:12, fontWeight:600, color:'#1A2421', marginBottom:6 }}>🇰🇷 설명글 (하단 자막)</div>
             <textarea
               value={manualKo}
-              onChange={e => { if (e.target.value.length <= charLimit) setManualKo(e.target.value) }}
+              onChange={e => { if (e.target.value.length <= 300) setManualKo(e.target.value) }}
               placeholder="예) 바다가 보이는 그 카페, 오늘도 당신을 기다려요"
-              style={{ width:'100%', minHeight:70, padding:'12px', borderRadius:10, border:'1.5px solid #5DCAA5', fontSize:13, color:'#1A2421', fontFamily:'Noto Sans KR, sans-serif', resize:'vertical', boxSizing:'border-box', outline:'none', lineHeight:1.5 }}
+              style={{ width:'100%', minHeight:100, padding:'12px', borderRadius:10, border:'1.5px solid #5DCAA5', fontSize:13, color:'#1A2421', fontFamily:'Noto Sans KR, sans-serif', resize:'vertical', boxSizing:'border-box', outline:'none', lineHeight:1.5 }}
             />
-            <div style={{ fontSize:11, color: manualKo.length >= charLimit ? '#EF9F27' : '#B0BAB6', textAlign:'right', marginTop:3 }}>
-              {manualKo.length} / {charLimit}자
+            <div style={{ fontSize:11, color: manualKo.length >= 270 ? '#EF9F27' : '#B0BAB6', textAlign:'right', marginTop:3 }}>
+              {manualKo.length} / 300자
             </div>
             <div style={{ fontSize:12, fontWeight:600, color:'#1A2421', margin:'14px 0 6px' }}>
               {SUB_LANG.find(l => l.code === subLang)?.flag} {SUB_LANG.find(l => l.code === subLang)?.name} 자막 <span style={{ color:'#B0BAB6', fontWeight:400 }}>(선택)</span>
             </div>
             <textarea
               value={manualSub}
-              onChange={e => { if (e.target.value.length <= charLimit) setManualSub(e.target.value) }}
+              onChange={e => { if (e.target.value.length <= 300) setManualSub(e.target.value) }}
               placeholder="외국어 자막을 직접 입력 (비워두면 한국어만 표시)"
-              style={{ width:'100%', minHeight:70, padding:'12px', borderRadius:10, border:'1.5px solid #E6EAE8', fontSize:13, color:'#1A2421', fontFamily:'Noto Sans KR, sans-serif', resize:'vertical', boxSizing:'border-box', outline:'none', lineHeight:1.5 }}
+              style={{ width:'100%', minHeight:100, padding:'12px', borderRadius:10, border:'1.5px solid #E6EAE8', fontSize:13, color:'#1A2421', fontFamily:'Noto Sans KR, sans-serif', resize:'vertical', boxSizing:'border-box', outline:'none', lineHeight:1.5 }}
             />
-            <div style={{ fontSize:11, color: manualSub.length >= charLimit ? '#EF9F27' : '#B0BAB6', textAlign:'right', marginTop:3 }}>
-              {manualSub.length} / {charLimit}자
+            <div style={{ fontSize:11, color: manualSub.length >= 270 ? '#EF9F27' : '#B0BAB6', textAlign:'right', marginTop:3 }}>
+              {manualSub.length} / 300자
             </div>
             <PrimaryBtn onClick={goManual} disabled={!manualKo.trim()} style={{ marginTop:14 }}>
               ✏️ 작성 완료 → 영상 만들기
