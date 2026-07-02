@@ -1293,9 +1293,8 @@ ${manualSub}`.trim()
                         <div style={{ width:46, height:46, borderRadius:8, overflow:'hidden', flexShrink:0, background:'#E6EAE8' }}>
                           {it.type === 'photo'
                             ? <img src={it.preview} style={{ width:'100%', height:'100%', objectFit:'cover' }} alt="" />
-                            : <video key={it.preview} src={it.preview} muted playsInline autoPlay preload="auto"
-                                style={{ width:'100%', height:'100%', objectFit:'cover' }}
-                                onTimeUpdate={e => { if (e.target.currentTime >= 0.5) { e.target.pause(); e.target.onTimeUpdate = null } }} />}
+                            : <video key={it.preview} src={it.preview} muted playsInline autoPlay loop
+                                style={{ width:'100%', height:'100%', objectFit:'cover' }} />}
                         </div>
                         <div style={{ flex:1, fontSize:12, color:'#1A2421', fontWeight:600 }}>
                           {it.type === 'photo' ? '📷 사진' : '🎬 영상'}
