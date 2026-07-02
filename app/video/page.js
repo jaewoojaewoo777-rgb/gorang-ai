@@ -196,46 +196,6 @@ function analyzeVideo(file) {
   })
 }
 
-function getVideoThumb(file) {
-  return new Promise(resolve => {
-    const url = URL.createObjectURL(file)
-    const video = document.createElement('video')
-    video.muted = true; video.playsInline = true; video.preload = 'auto'
-    // 실제 크기로 붙여야 하드웨어 디코더가 정상 작동
-    video.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:120px;height:120px;opacity:0;pointer-events:none;'
-    document.body.appendChild(video)
-
-    let settled = false
-    const done = (result) => {
-      if (settled) return; settled = true
-      video.pause()
-      try { document.body.removeChild(video) } catch {}
-      URL.revokeObjectURL(url); resolve(result)
-    }
-    const capture = () => {
-      try {
-        const canvas = document.createElement('canvas')
-        canvas.width = 120; canvas.height = 120
-        canvas.getContext('2d').drawImage(video, 0, 0, 120, 120)
-        done(canvas.toDataURL('image/jpeg', 0.8))
-      } catch { done(null) }
-    }
-    video.onerror = () => done(null)
-    video.onloadeddata = () => {
-      video.play().then(() => {
-        // requestVideoFrameCallback: Chrome 전용, 프레임이 실제로 준비됐을 때 캡처
-        if (typeof video.requestVideoFrameCallback === 'function') {
-          video.requestVideoFrameCallback(capture)
-        } else {
-          // 폴백: 200ms 재생 후 캡처
-          setTimeout(() => { capture() }, 200)
-        }
-      }).catch(() => done(null))
-    }
-    setTimeout(() => done(null), 15000)
-    video.src = url
-  })
-}
 
 function extractSection(captionText, section) {
   if (!captionText) return ''
@@ -475,12 +435,9 @@ useEffect(() => {
     setMixCheck([])
     e.target.value = ''
   }
-  const handleMixVideo = async e => {
+  const handleMixVideo = e => {
     const sel = Array.from(e.target.files)
-    const items = await Promise.all(sel.map(async f => ({
-      type: 'video', file: f, preview: URL.createObjectURL(f), thumb: await getVideoThumb(f),
-    })))
-    setMixItems(p => [...p, ...items])
+    setMixItems(p => [...p, ...sel.map(f => ({ type: 'video', file: f, preview: URL.createObjectURL(f) }))])
     setMixCheck([])
     e.target.value = ''
   }
@@ -1333,12 +1290,12 @@ ${manualSub}`.trim()
                     {mixItems.map((it, i) => (
                       <div key={i} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', marginBottom:6, borderRadius:10, border:'1.5px solid #E6EAE8', background:'#fff' }}>
                         <div style={{ fontSize:12, fontWeight:700, color:'#B0BAB6', width:18, textAlign:'center' }}>{i+1}</div>
-                        <div style={{ width:46, height:46, borderRadius:8, overflow:'hidden', flexShrink:0, background:'#E6EAE8', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                        <div style={{ width:46, height:46, borderRadius:8, overflow:'hidden', flexShrink:0, background:'#E6EAE8' }}>
                           {it.type === 'photo'
                             ? <img src={it.preview} style={{ width:'100%', height:'100%', objectFit:'cover' }} alt="" />
-                            : it.thumb
-                              ? <img src={it.thumb} style={{ width:'100%', height:'100%', objectFit:'cover' }} alt="" />
-                              : <span style={{ fontSize:20 }}>🎬</span>}
+                            : <video key={it.preview} src={it.preview} muted playsInline preload="auto"
+                                style={{ width:'100%', height:'100%', objectFit:'cover' }}
+                                onLoadedMetadata={e => { try { e.target.currentTime = 0.5 } catch {} }} />}
                         </div>
                         <div style={{ flex:1, fontSize:12, color:'#1A2421', fontWeight:600 }}>
                           {it.type === 'photo' ? '📷 사진' : '🎬 영상'}
