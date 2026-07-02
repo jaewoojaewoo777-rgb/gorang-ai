@@ -20,6 +20,8 @@ export async function POST(request) {
     const caption = formData.get('caption') || ''
     const title = formData.get('title') || '고랑AI 업로드'
     const isShorts = formData.get('isShorts') === 'true'
+    const tagsRaw = formData.get('tags')
+    const tags = tagsRaw ? JSON.parse(tagsRaw) : []
 
     if (!file && !videoUrl) return NextResponse.json({ error: '영상 파일 또는 URL 필요' }, { status: 400 })
 
@@ -72,6 +74,7 @@ export async function POST(request) {
       videoUrl: videoUrl || null,
       mimeType,
       isShorts,
+      tags,
     })
 
     console.log('[YouTube] 업로드 완료:', ytResult.id)
