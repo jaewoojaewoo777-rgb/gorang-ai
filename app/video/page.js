@@ -282,6 +282,7 @@ export default function VideoPage() {
 
   // 플랫폼별 캡션 state
   const [platformCaptions, setPlatformCaptions] = useState({})
+  const [platformCaptionLang, setPlatformCaptionLang] = useState('bilingual')  // 'bilingual'(자막 언어에 맞춰) | 'ko_only'(한국어만)
   const [captionGenerating, setCaptionGenerating] = useState({})
   const [streakInfo, setStreakInfo] = useState(null)
 
@@ -536,33 +537,55 @@ useEffect(() => {
     setCaptionGenerating(prev => ({ ...prev, [platformId]: true }))
     const baseKo = extractSection(caption, 'ko') || manualKo || ''
     const title = (titleText?.split('\n')[0] || '').trim() || extractSection(caption, 'titleLine1') || ''
+    const koOnly = platformCaptionLang === 'ko_only'
+    const foreignLangName = { en: '영어', zh: '중국어 간체', ja: '일본어' }[subLang] || '영어'
+
+    // 일반 플랫폼(유튜브쇼츠/유튜브/인스타/틱톡)은 처음 고른 자막 언어(subLang)에 맞춤 — ko_only면 전부 한국어만
+    const neutralLangLine = koOnly
+      ? '반드시 한국어로만 작성. 영어 등 다른 언어·해시태그는 절대 섞지 말 것.'
+      : `한국어 캡션 다음에 ${foreignLangName} 번역을 이어 붙여서 한국어+${foreignLangName} 두 언어로 작성. 해시태그도 한국어+${foreignLangName} 섞어서 작성.`
 
     const prompts = {
-      youtube_shorts: `제주도 소상공인 유튜브 쇼츠용 캡션을 만들어줘. JSON으로만 응답. 다른 텍스트 없이 JSON만.
+      youtube_shorts: `제주도 소상공인 유튜브 쇼츠용 캡션을 만들어줘. ${neutralLangLine} JSON으로만 응답. 다른 텍스트 없이 JSON만.
 제목힌트: ${title}
 내용힌트: ${baseKo}
 {"title":"제목(100자이내)","description":"설명(이모지+해시태그포함,500자이내)","tags":["태그1","태그2"]}`,
-      youtube: `제주도 소상공인 유튜브 일반영상용 캡션을 만들어줘. SEO최적화. JSON으로만 응답. 다른 텍스트 없이 JSON만.
+      youtube: `제주도 소상공인 유튜브 일반영상용 캡션을 만들어줘. SEO최적화. ${neutralLangLine} JSON으로만 응답. 다른 텍스트 없이 JSON만.
 제목힌트: ${title}
 내용힌트: ${baseKo}
 {"title":"제목(100자이내)","description":"설명(SEO키워드포함,줄바꿈활용,1000자이내)","tags":["태그1","태그2"]}`,
-      instagram: `제주도 소상공인 인스타그램 릴스용 캡션을 만들어줘. JSON으로만 응답. 다른 텍스트 없이 JSON만.
+      instagram: `제주도 소상공인 인스타그램 릴스용 캡션을 만들어줘. ${neutralLangLine} JSON으로만 응답. 다른 텍스트 없이 JSON만.
 제목힌트: ${title}
 내용힌트: ${baseKo}
 {"caption":"캡션(이모지+줄바꿈포함,150자이내)","hashtags":["해시태그1","해시태그2"]}`,
-      facebook: `제주도 소상공인 Facebook 페이지용 캡션을 만들어줘. 동남아·서양 관광객을 타깃으로, 영어+한국어 혼용 가능. JSON으로만 응답. 다른 텍스트 없이 JSON만.
+      facebook: koOnly
+        ? `제주도 소상공인 Facebook 페이지용 캡션을 만들어줘. 반드시 한국어로만 작성. JSON으로만 응답. 다른 텍스트 없이 JSON만.
+제목힌트: ${title}
+내용힌트: ${baseKo}
+{"caption":"캡션(이모지+줄바꿈포함,200자이내)","hashtags":["해시태그1","해시태그2"]}`
+        : `제주도 소상공인 Facebook 페이지용 캡션을 만들어줘. 동남아·서양 관광객을 타깃으로, 영어+한국어 혼용 가능. JSON으로만 응답. 다른 텍스트 없이 JSON만.
 제목힌트: ${title}
 내용힌트: ${baseKo}
 {"caption":"캡션(이모지+줄바꿈포함,200자이내,영어위주)","hashtags":["#Jeju","#Korea","#Travel"]}`,
-      line: `제주도 소상공인의 LINE Official Account 팔로워(일본인 관광객)용 메시지를 일본어로 만들어줘. 자연스럽고 친근한 일본어로. JSON으로만 응답. 다른 텍스트 없이 JSON만.
+      line: koOnly
+        ? `제주도 소상공인의 LINE Official Account 팔로워용 메시지를 반드시 한국어로만 만들어줘. JSON으로만 응답. 다른 텍스트 없이 JSON만.
+제목힌트: ${title}
+내용힌트: ${baseKo}
+{"caption":"메시지(이모지포함,200자이내)","hashtags":["해시태그1","해시태그2"]}`
+        : `제주도 소상공인의 LINE Official Account 팔로워(일본인 관광객)용 메시지를 일본어로 만들어줘. 자연스럽고 친근한 일본어로. JSON으로만 응답. 다른 텍스트 없이 JSON만.
 제목힌트: ${title}
 내용힌트: ${baseKo}
 {"caption":"메시지(일본어,이모지포함,200자이내)","hashtags":["#済州島","#韓国旅行","#カフェ"]}`,
-      tiktok: `제주도 소상공인 틱톡용 캡션을 만들어줘. 짧고 트렌디하게. JSON으로만 응답. 다른 텍스트 없이 JSON만.
+      tiktok: `제주도 소상공인 틱톡용 캡션을 만들어줘. 짧고 트렌디하게. ${neutralLangLine} JSON으로만 응답. 다른 텍스트 없이 JSON만.
 제목힌트: ${title}
 내용힌트: ${baseKo}
 {"caption":"한줄캡션(50자이내)","hashtags":["해시태그1","해시태그2","해시태그3"]}`,
-      xiaohongshu: `제주도 한국 카페/펜션/식당 소상공인의 샤오홍수(小红书) 게시글 캡션을 중국어 간체로 만들어줘. 중국 MZ 감성, 여행/맛집 탐방 느낌으로. JSON으로만 응답. 다른 텍스트 없이 JSON만.
+      xiaohongshu: koOnly
+        ? `제주도 한국 카페/펜션/식당 소상공인의 샤오홍수(小红书) 게시글 캡션을 반드시 한국어로만 만들어줘. JSON으로만 응답. 다른 텍스트 없이 JSON만.
+제목힌트: ${title}
+내용힌트: ${baseKo}
+{"title":"제목(이모지포함30자이내)","caption":"본문(이모지줄바꿈포함200자이내)","hashtags":["해시태그1","해시태그2"]}`
+        : `제주도 한국 카페/펜션/식당 소상공인의 샤오홍수(小红书) 게시글 캡션을 중국어 간체로 만들어줘. 중국 MZ 감성, 여행/맛집 탐방 느낌으로. JSON으로만 응답. 다른 텍스트 없이 JSON만.
 제목힌트: ${title}
 내용힌트: ${baseKo}
 {"title":"제목중국어(이모지포함30자이내)","caption":"본문중국어(이모지줄바꿈포함200자이내)","hashtags":["#济州岛","#韩国旅游","#카페"]}`,
@@ -1886,6 +1909,25 @@ ${manualSub}`.trim()
             {/* 플랫폼별 캡션 & 해시태그 */}
             <div style={{ marginBottom:14 }}>
               <div style={{ fontSize:12, fontWeight:700, color:'#1A2421', marginBottom:10 }}>📝 플랫폼별 캡션 & 해시태그</div>
+
+              <div style={{ marginBottom:10 }}>
+                <div style={{ fontSize:11, color:'#6B7875', fontWeight:500, marginBottom:6 }}>출력 언어</div>
+                <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+                  {[
+                    { id: 'bilingual', label: `🌐 자막 언어에 맞춰 (한국어+${{ en:'영어', zh:'중국어', ja:'일본어' }[subLang] || '영어'})` },
+                    { id: 'ko_only',   label: '🇰🇷 한국어만' },
+                  ].map(o => (
+                    <button key={o.id} onClick={() => setPlatformCaptionLang(o.id)}
+                      style={{ padding:'6px 12px', borderRadius:20, border:`1.5px solid ${platformCaptionLang===o.id?'#5DCAA5':'#E6EAE8'}`, background: platformCaptionLang===o.id?'#E1F5EE':'#fff', color: platformCaptionLang===o.id?'#0F6E56':'#6B7875', fontSize:12, fontWeight:500, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ fontSize:11, color:'#B0BAB6', marginTop:6 }}>
+                  LINE(일본어)·샤오홍수(중국어)·Facebook(영어)은 플랫폼 특성상 "자막 언어에 맞춰"를 선택해도 원래 타깃 언어를 그대로 써요. "한국어만" 선택 시엔 전부 한국어로 나가요.
+                </div>
+              </div>
+
               {Object.keys(platformCaptions).length === 0 && (
                 <div style={{ background:'#FFF8E1', border:'1.5px solid #F5C842', borderRadius:10, padding:'10px 12px', marginBottom:10, fontSize:11, color:'#7A5C00' }}>
                   ✏️ 캡션이 수정됐어요. 각 플랫폼의 <b>AI 자동생성</b> 버튼을 눌러 새 캡션을 만들어주세요.
