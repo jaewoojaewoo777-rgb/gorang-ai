@@ -61,6 +61,11 @@ const TITLE_FONT_OPTIONS = [
   { id: 'NanumPen',     label: '나눔펜체',  desc: '나눔펜 — 캐주얼 손글씨',         css: "'Nanum Pen Script', cursive" },
 ]
 
+const VIDEO_LENGTH_OPTIONS = [
+  { id: 'short', emoji: '⚡', label: '짧게 (15초)', desc: '릴스·틱톡 완주율에 유리' },
+  { id: 'long',  emoji: '🎬', label: '길게 (30초)', desc: '정보량 많을 때, 유튜브 쇼츠' },
+]
+
 const TONE_OPTIONS = [
   { id: 'trendy',    emoji: '🔥', label: '트렌디',    desc: 'MZ 감성, 요즘 말투' },
   { id: 'emotional', emoji: '🌙', label: '감성',      desc: '잔잔하고 서정적' },
@@ -251,6 +256,7 @@ export default function VideoPage() {
 
   const [subLang, setSubLang] = useState('en')
   const [captionTone, setCaptionTone] = useState('trendy')  // 캡션 말투
+  const [videoLength, setVideoLength] = useState('long')  // 영상 길이 (짧게15초/길게30초)
   const [selectedBGM, setSelectedBGM] = useState('auto')
   const [titleText, setTitleText] = useState('')
   const [titleFont, setTitleFont] = useState('GowunBatang')
@@ -742,7 +748,7 @@ useEffect(() => {
         setGenMsg('📱 세로 영상 제작 중... (최대 1~2분)')
         const url = await renderAndWait({
           imageDataUrls, koText, subText, titleLine1, titleLine2,
-          bgmUrl, isPortrait: true, subLang, shopType, mediaItems, tone: captionTone, titleFont,
+          bgmUrl, isPortrait: true, subLang, shopType, mediaItems, tone: captionTone, titleFont, videoLength,
         }, 20, needLandscape ? 50 : 88)
         result.portrait = { url, blob: null }
         setGenProgress(needLandscape ? 55 : 90)
@@ -752,7 +758,7 @@ useEffect(() => {
         setGenMsg('🖥️ 가로 영상 제작 중... (최대 1~2분)')
         const url = await renderAndWait({
           imageDataUrls, koText, subText, titleLine1, titleLine2,
-          bgmUrl, isPortrait: false, subLang, shopType, mediaItems, tone: captionTone, titleFont,
+          bgmUrl, isPortrait: false, subLang, shopType, mediaItems, tone: captionTone, titleFont, videoLength,
         }, needPortrait ? 60 : 20, 88)
         result.landscape = { url, blob: null }
         setGenProgress(90)
@@ -1413,6 +1419,29 @@ ${manualSub}`.trim()
                     {b.name}
                   </button>
                 ))}
+              </div>
+            </div>
+
+            <div style={{ marginBottom:14 }}>
+              <div style={{ fontSize:11, color:'#6B7875', fontWeight:500, marginBottom:8 }}>⏱️ 영상 길이</div>
+              <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+                {VIDEO_LENGTH_OPTIONS.map(v => (
+                  <button key={v.id} onClick={() => setVideoLength(v.id)}
+                    title={v.desc}
+                    style={{
+                      padding:'7px 12px', borderRadius:20,
+                      border:`1.5px solid ${videoLength===v.id?'#1D9E75':'#E6EAE8'}`,
+                      background: videoLength===v.id?'#E1F5EE':'#fff',
+                      color: videoLength===v.id?'#0F6E56':'#6B7875',
+                      fontSize:12, fontWeight:600, cursor:'pointer',
+                      fontFamily:'Noto Sans KR, sans-serif',
+                    }}>
+                    {v.emoji} {v.label}
+                  </button>
+                ))}
+              </div>
+              <div style={{ fontSize:11, color:'#B0BAB6', marginTop:6 }}>
+                {VIDEO_LENGTH_OPTIONS.find(v => v.id === videoLength)?.desc}
               </div>
             </div>
 
