@@ -200,20 +200,23 @@ function getVideoThumb(file) {
   return new Promise(resolve => {
     const url = URL.createObjectURL(file)
     const video = document.createElement('video')
-    video.muted = true; video.playsInline = true; video.preload = 'metadata'
-    video.onerror = () => { URL.revokeObjectURL(url); resolve(null) }
-    video.onloadedmetadata = () => { video.currentTime = Math.min(0.5, (video.duration || 1) / 2) }
-    video.onseeked = () => {
+    video.muted = true; video.playsInline = true; video.preload = 'auto'
+    let settled = false
+    const done = (result) => { if (settled) return; settled = true; URL.revokeObjectURL(url); resolve(result) }
+    const capture = () => {
       try {
         const canvas = document.createElement('canvas')
         canvas.width = 120; canvas.height = 120
         canvas.getContext('2d').drawImage(video, 0, 0, 120, 120)
-        URL.revokeObjectURL(url)
-        resolve(canvas.toDataURL('image/jpeg', 0.8))
-      } catch { URL.revokeObjectURL(url); resolve(null) }
+        done(canvas.toDataURL('image/jpeg', 0.8))
+      } catch { done(null) }
     }
-    setTimeout(() => { URL.revokeObjectURL(url); resolve(null) }, 6000)
+    video.onerror = () => done(null)
+    video.onseeked = () => setTimeout(capture, 80)   // 프레임 렌더 대기
+    video.onloadeddata = () => { video.currentTime = Math.min(0.5, (video.duration || 1) * 0.1) }
+    setTimeout(() => done(null), 10000)
     video.src = url
+    video.load()
   })
 }
 
