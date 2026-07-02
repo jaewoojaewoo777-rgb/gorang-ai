@@ -4,6 +4,17 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 import { BottomNav, TopBar, PrimaryBtn, GhostBtn, AiBox, LoadingDots } from '../../components/ui'
 
+function RecommendBubble({ text }) {
+  return (
+    <div style={{ position:'absolute', top:-28, left:'50%', transform:'translateX(-50%)', whiteSpace:'nowrap', zIndex:2, pointerEvents:'none' }}>
+      <div style={{ background:'#1D9E75', color:'#fff', fontSize:10, fontWeight:700, padding:'4px 9px', borderRadius:10, boxShadow:'0 2px 6px rgba(0,0,0,0.18)', fontFamily:'Noto Sans KR, sans-serif' }}>
+        {text}
+      </div>
+      <div style={{ width:0, height:0, margin:'0 auto', borderLeft:'5px solid transparent', borderRight:'5px solid transparent', borderTop:'5px solid #1D9E75' }} />
+    </div>
+  )
+}
+
 const BGM_LIST = [
   { id: 'auto',    name: '✨ AI 자동 선택' },
   { id: 'none',    name: '🔇 없음' },
@@ -255,8 +266,8 @@ export default function VideoPage() {
   const [captionLoading, setCaptionLoading] = useState(false)
 
   const [subLang, setSubLang] = useState('en')
-  const [captionTone, setCaptionTone] = useState('trendy')  // 캡션 말투
-  const [videoLength, setVideoLength] = useState('long')  // 영상 길이 (짧게15초/길게30초)
+  const [captionTone, setCaptionTone] = useState('custom')  // 캡션 말투 (기본: 나만의 말투 추천)
+  const [videoLength, setVideoLength] = useState('short')  // 영상 길이 (기본: 짧게 15초 추천)
   const [selectedBGM, setSelectedBGM] = useState('auto')
   const [titleText, setTitleText] = useState('')
   const [titleFont, setTitleFont] = useState('GowunBatang')
@@ -1447,20 +1458,23 @@ ${manualSub}`.trim()
 
             <div style={{ marginBottom:14 }}>
               <div style={{ fontSize:11, color:'#6B7875', fontWeight:500, marginBottom:8 }}>⏱️ 영상 길이</div>
-              <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+              <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:22 }}>
                 {VIDEO_LENGTH_OPTIONS.map(v => (
-                  <button key={v.id} onClick={() => setVideoLength(v.id)}
-                    title={v.desc}
-                    style={{
-                      padding:'7px 12px', borderRadius:20,
-                      border:`1.5px solid ${videoLength===v.id?'#1D9E75':'#E6EAE8'}`,
-                      background: videoLength===v.id?'#E1F5EE':'#fff',
-                      color: videoLength===v.id?'#0F6E56':'#6B7875',
-                      fontSize:12, fontWeight:600, cursor:'pointer',
-                      fontFamily:'Noto Sans KR, sans-serif',
-                    }}>
-                    {v.emoji} {v.label}
-                  </button>
+                  <div key={v.id} style={{ position:'relative' }}>
+                    {v.id === 'short' && <RecommendBubble text="✨ AI 추천" />}
+                    <button onClick={() => setVideoLength(v.id)}
+                      title={v.desc}
+                      style={{
+                        padding:'7px 12px', borderRadius:20,
+                        border:`1.5px solid ${videoLength===v.id?'#1D9E75':'#E6EAE8'}`,
+                        background: videoLength===v.id?'#E1F5EE':'#fff',
+                        color: videoLength===v.id?'#0F6E56':'#6B7875',
+                        fontSize:12, fontWeight:600, cursor:'pointer',
+                        fontFamily:'Noto Sans KR, sans-serif',
+                      }}>
+                      {v.emoji} {v.label}
+                    </button>
+                  </div>
                 ))}
               </div>
               <div style={{ fontSize:11, color:'#B0BAB6', marginTop:6 }}>
@@ -1484,20 +1498,23 @@ ${manualSub}`.trim()
 
             <div style={{ marginBottom:14 }}>
               <div style={{ fontSize:11, color:'#6B7875', fontWeight:500, marginBottom:8 }}>💬 캡션 말투 <span style={{ color:'#B0BAB6' }}>(AI가 이 느낌으로 써요)</span></div>
-              <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+              <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:22 }}>
                 {TONE_OPTIONS.map(t => (
-                  <button key={t.id} onClick={() => setCaptionTone(t.id)}
-                    title={t.desc}
-                    style={{
-                      padding:'7px 12px', borderRadius:20,
-                      border:`1.5px solid ${captionTone===t.id?'#1D9E75':'#E6EAE8'}`,
-                      background: captionTone===t.id?'#E1F5EE':'#fff',
-                      color: captionTone===t.id?'#0F6E56':'#6B7875',
-                      fontSize:12, fontWeight:600, cursor:'pointer',
-                      fontFamily:'Noto Sans KR, sans-serif',
-                    }}>
-                    {t.emoji} {t.label}
-                  </button>
+                  <div key={t.id} style={{ position:'relative' }}>
+                    {t.id === 'custom' && <RecommendBubble text="✨ AI 추천" />}
+                    <button onClick={() => setCaptionTone(t.id)}
+                      title={t.desc}
+                      style={{
+                        padding:'7px 12px', borderRadius:20,
+                        border:`1.5px solid ${captionTone===t.id?'#1D9E75':'#E6EAE8'}`,
+                        background: captionTone===t.id?'#E1F5EE':'#fff',
+                        color: captionTone===t.id?'#0F6E56':'#6B7875',
+                        fontSize:12, fontWeight:600, cursor:'pointer',
+                        fontFamily:'Noto Sans KR, sans-serif',
+                      }}>
+                      {t.emoji} {t.label}
+                    </button>
+                  </div>
                 ))}
               </div>
               <div style={{ fontSize:11, color:'#B0BAB6', marginTop:6 }}>
