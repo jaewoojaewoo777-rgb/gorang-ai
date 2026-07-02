@@ -201,12 +201,14 @@ function getVideoThumb(file) {
     const url = URL.createObjectURL(file)
     const video = document.createElement('video')
     video.muted = true; video.playsInline = true; video.preload = 'auto'
-    video.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;'
+    // 실제 크기로 붙여야 하드웨어 디코더가 정상 작동
+    video.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:120px;height:120px;opacity:0;pointer-events:none;'
     document.body.appendChild(video)
 
     let settled = false
     const done = (result) => {
       if (settled) return; settled = true
+      video.pause()
       try { document.body.removeChild(video) } catch {}
       URL.revokeObjectURL(url); resolve(result)
     }
@@ -219,15 +221,16 @@ function getVideoThumb(file) {
       } catch { done(null) }
     }
     video.onerror = () => done(null)
-    video.onseeked = () => setTimeout(capture, 150)
-    video.onloadedmetadata = () => {
-      // play()로 디코더 강제 초기화 후 seek
+    video.onloadeddata = () => {
       video.play().then(() => {
-        video.pause()
-        video.currentTime = Math.min(0.5, (video.duration || 1) * 0.1)
-      }).catch(() => {
-        video.currentTime = Math.min(0.5, (video.duration || 1) * 0.1)
-      })
+        // requestVideoFrameCallback: Chrome 전용, 프레임이 실제로 준비됐을 때 캡처
+        if (typeof video.requestVideoFrameCallback === 'function') {
+          video.requestVideoFrameCallback(capture)
+        } else {
+          // 폴백: 200ms 재생 후 캡처
+          setTimeout(() => { capture() }, 200)
+        }
+      }).catch(() => done(null))
     }
     setTimeout(() => done(null), 15000)
     video.src = url
