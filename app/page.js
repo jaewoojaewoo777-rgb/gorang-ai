@@ -207,16 +207,14 @@ export default function LandingPage() {
       </div>
 
       {/* ── 푸터 ── */}
-      <div style={{ background: '#0A1F19', padding: '28px 24px 36px', textAlign: 'center' }}>
-        <div style={{ display: 'inline-flex', background: '#fff', borderRadius: 10, padding: '8px 12px', marginBottom: 14, boxShadow: '0 2px 10px rgba(0,0,0,.18)' }}>
-          <img src="/logo.png" alt="고랑AI" style={{ height: 34, width: 'auto', display: 'block' }} />
-        </div>
+      <div style={{ background: '#fff', padding: '28px 24px 36px', textAlign: 'center', borderTop: '1px solid #F0F2F1' }}>
+        <img src="/logo.png" alt="고랑AI" style={{ height: 52, width: 'auto', display: 'block', margin: '0 auto 16px' }} />
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 14, marginBottom: 14 }}>
-          <a href="/privacy" style={{ fontSize: 12, color: 'rgba(255,255,255,.8)', textDecoration: 'underline', fontWeight: 600, fontFamily: 'Noto Sans KR, sans-serif' }}>개인정보처리방침</a>
-          <span style={{ color: 'rgba(255,255,255,.3)' }}>·</span>
-          <a href="/terms" style={{ fontSize: 12, color: 'rgba(255,255,255,.8)', textDecoration: 'underline', fontWeight: 600, fontFamily: 'Noto Sans KR, sans-serif' }}>이용약관</a>
+          <a href="/privacy" style={{ fontSize: 12, color: '#1D9E75', textDecoration: 'underline', fontWeight: 600, fontFamily: 'Noto Sans KR, sans-serif' }}>개인정보처리방침</a>
+          <span style={{ color: '#ccc' }}>·</span>
+          <a href="/terms" style={{ fontSize: 12, color: '#1D9E75', textDecoration: 'underline', fontWeight: 600, fontFamily: 'Noto Sans KR, sans-serif' }}>이용약관</a>
         </div>
-        <div style={{ fontSize: 11, color: 'rgba(255,255,255,.4)', lineHeight: 1.7, fontFamily: 'Noto Sans KR, sans-serif' }}>
+        <div style={{ fontSize: 11, color: '#aaa', lineHeight: 1.7, fontFamily: 'Noto Sans KR, sans-serif' }}>
           문의: jaewoojaewoo777@gmail.com<br />© 2026 고랑AI. All rights reserved.
         </div>
       </div>
