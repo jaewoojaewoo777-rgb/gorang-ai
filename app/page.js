@@ -58,9 +58,7 @@ export default function LandingPage() {
   if (!ready) {
     return (
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1D9E75' }}>
-        <div style={{ background: '#fff', borderRadius: 20, padding: 16, display: 'flex', boxShadow: '0 6px 24px rgba(0,0,0,.12)' }}>
-          <img src="/logo.png" alt="고랑AI" style={{ height: 96, width: 'auto', display: 'block' }} />
-        </div>
+        <img src="/logo.png" alt="고랑AI" style={{ height: 96, width: 'auto', display: 'block' }} />
       </div>
     )
   }
