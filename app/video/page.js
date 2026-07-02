@@ -195,6 +195,27 @@ function analyzeVideo(file) {
   })
 }
 
+function getVideoThumb(file) {
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(file)
+    const video = document.createElement('video')
+    video.muted = true; video.playsInline = true; video.preload = 'metadata'
+    video.onerror = () => { URL.revokeObjectURL(url); resolve(null) }
+    video.onloadedmetadata = () => { video.currentTime = Math.min(0.5, (video.duration || 1) / 2) }
+    video.onseeked = () => {
+      try {
+        const canvas = document.createElement('canvas')
+        canvas.width = 120; canvas.height = 120
+        canvas.getContext('2d').drawImage(video, 0, 0, 120, 120)
+        URL.revokeObjectURL(url)
+        resolve(canvas.toDataURL('image/jpeg', 0.8))
+      } catch { URL.revokeObjectURL(url); resolve(null) }
+    }
+    setTimeout(() => { URL.revokeObjectURL(url); resolve(null) }, 6000)
+    video.src = url
+  })
+}
+
 function extractSection(captionText, section) {
   if (!captionText) return ''
   const sectionMap = {
@@ -433,9 +454,12 @@ useEffect(() => {
     setMixCheck([])
     e.target.value = ''
   }
-  const handleMixVideo = e => {
+  const handleMixVideo = async e => {
     const sel = Array.from(e.target.files)
-    setMixItems(p => [...p, ...sel.map(f => ({ type:'video', file:f, preview:URL.createObjectURL(f) }))])
+    const items = await Promise.all(sel.map(async f => ({
+      type: 'video', file: f, preview: URL.createObjectURL(f), thumb: await getVideoThumb(f),
+    })))
+    setMixItems(p => [...p, ...items])
     setMixCheck([])
     e.target.value = ''
   }
@@ -1288,10 +1312,12 @@ ${manualSub}`.trim()
                     {mixItems.map((it, i) => (
                       <div key={i} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', marginBottom:6, borderRadius:10, border:'1.5px solid #E6EAE8', background:'#fff' }}>
                         <div style={{ fontSize:12, fontWeight:700, color:'#B0BAB6', width:18, textAlign:'center' }}>{i+1}</div>
-                        <div style={{ width:46, height:46, borderRadius:8, overflow:'hidden', flexShrink:0, background:'#000' }}>
+                        <div style={{ width:46, height:46, borderRadius:8, overflow:'hidden', flexShrink:0, background:'#E6EAE8', display:'flex', alignItems:'center', justifyContent:'center' }}>
                           {it.type === 'photo'
                             ? <img src={it.preview} style={{ width:'100%', height:'100%', objectFit:'cover' }} alt="" />
-                            : <video src={`${it.preview}#t=0.1`} preload="metadata" playsInline muted style={{ width:'100%', height:'100%', objectFit:'cover' }} />}
+                            : it.thumb
+                              ? <img src={it.thumb} style={{ width:'100%', height:'100%', objectFit:'cover' }} alt="" />
+                              : <span style={{ fontSize:20 }}>🎬</span>}
                         </div>
                         <div style={{ flex:1, fontSize:12, color:'#1A2421', fontWeight:600 }}>
                           {it.type === 'photo' ? '📷 사진' : '🎬 영상'}
