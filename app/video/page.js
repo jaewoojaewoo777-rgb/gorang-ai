@@ -62,12 +62,12 @@ const TITLE_FONT_OPTIONS = [
 ]
 
 const TONE_OPTIONS = [
-  { id: 'trendy',      emoji: '🔥', label: '트렌디',    desc: 'MZ 감성, 요즘 말투' },
-  { id: 'emotional',   emoji: '🌙', label: '감성',      desc: '잔잔하고 서정적' },
-  { id: 'cute',        emoji: '💕', label: '귀여운',    desc: '발랄, 이모지 많이' },
-  { id: 'luxury',      emoji: '✨', label: '고급',      desc: '세련되고 품격있게' },
-  { id: 'info',        emoji: '📋', label: '깔끔정보',  desc: '과장없이 핵심만' },
-  { id: 'jeju_uncle',  emoji: '📍', label: '제주삼촌',  desc: '핀아저씨 능청스러운 톤' },
+  { id: 'trendy',    emoji: '🔥', label: '트렌디',    desc: 'MZ 감성, 요즘 말투' },
+  { id: 'emotional', emoji: '🌙', label: '감성',      desc: '잔잔하고 서정적' },
+  { id: 'cute',      emoji: '💕', label: '귀여운',    desc: '발랄, 이모지 많이' },
+  { id: 'luxury',    emoji: '✨', label: '고급',      desc: '세련되고 품격있게' },
+  { id: 'info',      emoji: '📋', label: '깔끔정보',  desc: '과장없이 핵심만' },
+  { id: 'custom',    emoji: '🎤', label: '나만의 말투', desc: '설정에서 직접 정의한 톤' },
 ]
 
 const PROMPT_EXAMPLES = [

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '../../../lib/session'
+import { supabaseAdmin } from '../../../lib/db'
 import { generateCaption } from '../../../lib/ai'
 
 export async function POST(request) {
@@ -7,6 +8,12 @@ export async function POST(request) {
   if (!session.userId) return NextResponse.json({ error: '로그인 필요' }, { status: 401 })
 
   const { shopName, shopLocation, shopType, customPrompt, subLang, imageBase64List, tone } = await request.json()
+
+  let brandVoice = null
+  if (tone === 'custom') {
+    const { data } = await supabaseAdmin.from('users').select('brand_voice').eq('id', session.userId).single()
+    brandVoice = data?.brand_voice || null
+  }
 
   try {
     const result = await generateCaption({
@@ -17,6 +24,7 @@ export async function POST(request) {
       subLang,
       imageBase64List: imageBase64List || [],
       tone: tone || 'trendy',
+      brandVoice,
     })
     return NextResponse.json({ result })
   } catch (err) {

@@ -9,11 +9,14 @@ export async function POST(request) {
   }
 
   const body = await request.json()
-  const { shopName, shopType, shopLocation, shopIntro } = body
+  const { shopName, shopType, shopLocation, shopIntro, brandVoice } = body
+
+  const updateData = { shop_name: shopName, shop_type: shopType, shop_location: shopLocation, shop_intro: shopIntro }
+  if (brandVoice !== undefined) updateData.brand_voice = brandVoice
 
   const { error } = await supabaseAdmin
     .from('users')
-    .update({ shop_name: shopName, shop_type: shopType, shop_location: shopLocation, shop_intro: shopIntro })
+    .update(updateData)
     .eq('id', session.userId)
 
   if (error) {
@@ -56,5 +59,6 @@ export async function GET() {
     google_connected: !!data.google_access_token,
     facebook_connected: !!data.fb_page_id,
     line_connected: !!data.line_channel_access_token,
+    brand_voice: data.brand_voice ?? null,
   })
 }

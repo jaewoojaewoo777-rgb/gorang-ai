@@ -6,9 +6,17 @@ import { BottomNav, Card, PrimaryBtn } from '../../components/ui'
 export default function SettingsPage() {
   const router = useRouter()
   const [shop, setShop] = useState({})
-  const [busy, setBusy] = useState(null)   // 연동해제 처리중인 platform key
+  const [busy, setBusy] = useState(null)
+  const [voiceGuideOpen, setVoiceGuideOpen] = useState(false)
+  const [voiceSaving, setVoiceSaving] = useState(false)
+  const [voice, setVoice] = useState({ character: '', mannerism: '', closing: '', forbidden: '' })
 
-  const loadShop = () => fetch('/api/shop').then(r => r.json()).then(setShop).catch(() => {})
+  const loadShop = () => fetch('/api/shop').then(r => r.json()).then(d => {
+    setShop(d)
+    if (d.brand_voice) {
+      try { setVoice(typeof d.brand_voice === 'string' ? JSON.parse(d.brand_voice) : d.brand_voice) } catch {}
+    }
+  }).catch(() => {})
   useEffect(() => { loadShop() }, [])
 
   // 모든 플랫폼 공통 — 틱톡과 동일한 '연동해제' 방식으로 통일
@@ -19,6 +27,17 @@ export default function SettingsPage() {
     { key: 'line',        icon: '💚', name: 'LINE',                 connected: !!shop.line_connected,          reconnect: () => router.push('/connect') },
     { key: 'tripadvisor', icon: '🦉', name: '트립어드바이저',        connected: !!shop.tripadvisor_location_id, reconnect: () => router.push('/connect') },
   ]
+
+  async function saveVoice() {
+    setVoiceSaving(true)
+    await fetch('/api/shop', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ brandVoice: JSON.stringify(voice) }),
+    })
+    setVoiceSaving(false)
+    alert('나만의 말투가 저장되었습니다!')
+  }
 
   async function handleDisconnect(key, name) {
     if (!confirm(`${name} 연동을 해제하시겠어요?\n해제 후 다시 연동할 수 있습니다.`)) return
@@ -60,6 +79,60 @@ export default function SettingsPage() {
           <div style={{ fontSize:12, color:'#B0BAB6', marginBottom:8 }}>{shop.shop_location || '—'}</div>
           <button onClick={() => router.push('/register')}
             style={{ fontSize:12, color:'#1D9E75', fontWeight:600, background:'none', border:'none', cursor:'pointer', padding:0 }}>수정하기 →</button>
+        </Card>
+
+        {/* ── 나만의 말투 ── */}
+        <Card style={{ marginBottom:12 }}>
+          <div style={{ fontSize:12, fontWeight:700, color:'#1A2421', marginBottom:8 }}>🎤 나만의 말투</div>
+
+          {/* 안내 토글 */}
+          <button onClick={() => setVoiceGuideOpen(o => !o)}
+            style={{ width:'100%', display:'flex', justifyContent:'space-between', alignItems:'center', background:'#F4F6F5', border:'none', borderRadius:8, padding:'8px 10px', cursor:'pointer', marginBottom:10 }}>
+            <span style={{ fontSize:11, fontWeight:600, color:'#0F6E56' }}>왜 설정하면 좋을까요? (작성 요령 보기)</span>
+            <span style={{ fontSize:12, color:'#6B7875' }}>{voiceGuideOpen ? '▲' : '▼'}</span>
+          </button>
+          {voiceGuideOpen && (
+            <div style={{ background:'#F4F6F5', borderRadius:8, padding:'10px 12px', marginBottom:10, fontSize:11, color:'#444', lineHeight:1.8 }}>
+              <div style={{ fontWeight:700, color:'#0F6E56', marginBottom:4 }}>✅ 설정하면 좋은 이유</div>
+              <div>• AI가 항상 우리 가게만의 목소리로 자막을 생성해요</div>
+              <div>• 영상마다 톤이 일관되어 브랜드가 더 빨리 각인돼요</div>
+              <div>• 캡션 생성 시 "나만의 말투" 선택만 하면 자동 적용돼요</div>
+              <div style={{ fontWeight:700, color:'#0F6E56', margin:'8px 0 4px' }}>📝 작성 요령</div>
+              <div>• <b>캐릭터</b>: 어떤 사람이 말하는 느낌인지 간단히<br/>
+                예) "따뜻하고 친근한 30대 카페 주인"<br/>
+                예) "장년의 걸걸하고 능청스러운 제주 삼촌"</div>
+              <div style={{ marginTop:4 }}>• <b>말버릇/어미</b>: 자주 쓸 표현이나 어미<br/>
+                예) "~해요, ~랍니다, 이모지 자주"<br/>
+                예) "~하지, ~거든, 어~ 같은 추임새"</div>
+              <div style={{ marginTop:4 }}>• <b>클로징 멘트</b>: 매 영상 마지막에 고정으로 붙을 한 줄<br/>
+                예) "오늘도 맛있는 하루 🌿"<br/>
+                예) "또 놀러 와요~ 🏡"</div>
+              <div style={{ marginTop:4 }}>• <b>금지 표현</b>: AI가 절대 쓰지 말아야 할 문구<br/>
+                예) "여러분 안녕하세요, 소개해드릴"</div>
+            </div>
+          )}
+
+          {[
+            { key:'character', label:'캐릭터 설명', placeholder:'예) 따뜻하고 친근한 30대 카페 주인장' },
+            { key:'mannerism', label:'말버릇 / 어미', placeholder:'예) ~해요, ~랍니다, 이모지 자주' },
+            { key:'closing',   label:'클로징 멘트', placeholder:'예) 오늘도 맛있는 하루 🌿' },
+            { key:'forbidden', label:'금지 표현', placeholder:'예) 여러분 안녕하세요, 소개해드릴' },
+          ].map(f => (
+            <div key={f.key} style={{ marginBottom:8 }}>
+              <div style={{ fontSize:11, fontWeight:600, color:'#6B7875', marginBottom:3 }}>{f.label}</div>
+              <input
+                value={voice[f.key]}
+                onChange={e => setVoice(v => ({ ...v, [f.key]: e.target.value }))}
+                placeholder={f.placeholder}
+                style={{ width:'100%', padding:'8px 10px', borderRadius:8, border:'1.5px solid #E6EAE8', fontSize:12, fontFamily:'Noto Sans KR, sans-serif', boxSizing:'border-box', outline:'none', color:'#1A2421' }}
+              />
+            </div>
+          ))}
+
+          <button onClick={saveVoice} disabled={voiceSaving}
+            style={{ width:'100%', padding:'10px', borderRadius:10, border:'none', background:'#1D9E75', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', marginTop:4 }}>
+            {voiceSaving ? '저장 중...' : '💾 나만의 말투 저장'}
+          </button>
         </Card>
 
         <Card style={{ marginBottom:12 }}>
