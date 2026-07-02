@@ -201,8 +201,16 @@ function getVideoThumb(file) {
     const url = URL.createObjectURL(file)
     const video = document.createElement('video')
     video.muted = true; video.playsInline = true; video.preload = 'auto'
+    // DOM에 붙여야 일부 브라우저가 프레임 디코딩을 허용함
+    video.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;'
+    document.body.appendChild(video)
+
     let settled = false
-    const done = (result) => { if (settled) return; settled = true; URL.revokeObjectURL(url); resolve(result) }
+    const done = (result) => {
+      if (settled) return; settled = true
+      try { document.body.removeChild(video) } catch {}
+      URL.revokeObjectURL(url); resolve(result)
+    }
     const capture = () => {
       try {
         const canvas = document.createElement('canvas')
@@ -212,11 +220,10 @@ function getVideoThumb(file) {
       } catch { done(null) }
     }
     video.onerror = () => done(null)
-    video.onseeked = () => setTimeout(capture, 80)   // 프레임 렌더 대기
-    video.onloadeddata = () => { video.currentTime = Math.min(0.5, (video.duration || 1) * 0.1) }
-    setTimeout(() => done(null), 10000)
+    video.onseeked = () => setTimeout(capture, 100)
+    video.oncanplay = () => { if (!settled) video.currentTime = Math.min(0.5, (video.duration || 1) * 0.1) }
+    setTimeout(() => done(null), 12000)
     video.src = url
-    video.load()
   })
 }
 
