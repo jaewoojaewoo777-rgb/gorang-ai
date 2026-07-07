@@ -128,8 +128,10 @@ export default function TermsPage() {
         </Section>
 
         <Section num="7" title="지식재산권" subtitle="Intellectual Property" color="#0099ff">
-          <p style={biKo}>이용자가 서비스를 통해 업로드하는 콘텐츠의 저작권은 이용자에게 있습니다. 회사는 서비스 제공 목적 외에 이용자의 콘텐츠를 사용하지 않습니다.</p>
-          <p style={biEn}>Copyright in content uploaded by users remains with the user. The Company will not use user content for any purpose other than service provision.</p>
+          <p style={biKo}>이용자가 서비스를 통해 업로드하는 콘텐츠의 저작권은 이용자에게 있습니다.</p>
+          <p style={biEn}>Copyright in content uploaded by users remains with the user.</p>
+          <p style={biKo}>다만 회사는 서비스 제공, 서비스 품질 및 AI 모델 개선, 통계 작성을 위해 이용자의 콘텐츠 및 이용 데이터(업로드한 사진·영상, AI 답변 초안과 이용자가 수정한 내용, 게시 성과 데이터 등)를 분석·활용할 수 있으며, 이 경우 특정 개인이나 사업장을 알아볼 수 없도록 가공하여 처리합니다. 이렇게 통계적으로 처리된 자료는 서비스 개선 보고서나 마케팅 자료 등에 활용될 수 있습니다. 회사는 이용자의 콘텐츠를 식별 가능한 형태로 제3자에게 판매하지 않습니다.</p>
+          <p style={biEn}>However, the Company may analyze and use user content and usage data (uploaded photos/videos, AI-generated reply drafts and the user&apos;s edits, posting performance data, etc.) to provide the service, improve service quality and AI models, and compile statistics; such data will be processed so that no specific individual or business can be identified. Statistically processed data of this kind may be used in service improvement reports or marketing materials. The Company will not sell user content to third parties in identifiable form.</p>
         </Section>
 
         <Section num="8" title="책임의 한계" subtitle="Limitation of Liability" color="#0099ff">

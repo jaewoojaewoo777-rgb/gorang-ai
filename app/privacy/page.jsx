@@ -82,6 +82,7 @@ export default function PrivacyPage() {
             <li>KO: AI 리뷰 자동 답변 서비스 (Google 지도 리뷰) / EN: AI-powered review auto-reply service (Google Maps reviews)</li>
             <li>KO: 고객 지원 및 문의 처리 / EN: Customer support and inquiry handling</li>
             <li>KO: 서비스 개선 및 신규 기능 개발 / EN: Service improvement and new feature development</li>
+            <li>KO: 서비스 이용 데이터(업로드 사진·영상, AI 답변 초안과 이용자 수정 내용, 게시 성과 등)의 통계 작성 및 AI 모델 개선 목적 분석 (특정 개인·사업장 식별 불가능한 형태로 처리) / EN: Analysis of service usage data (uploaded photos/videos, AI reply drafts and user edits, posting performance, etc.) for statistics and AI model improvement, processed so no specific individual or business can be identified</li>
             <li>KO: 구독 결제 처리 및 관련 고지 / EN: Subscription billing and related notifications</li>
             <li>KO: 법적 의무 준수 / EN: Compliance with legal obligations</li>
           </ul>
