@@ -39,6 +39,27 @@ export default function SettingsPage() {
     alert('나만의 말투가 저장되었습니다!')
   }
 
+  const PLAN_LABEL = { basic: '베이직', standard: '스탠다드', pro: '프로', none: '무료' }
+  const PLAN_PRICE = { basic: '29,000', standard: '59,000', pro: '129,000', none: '0' }
+
+  async function handleCancelSubscription() {
+    if (!confirm('구독을 해지하시겠어요?\n다음 결제일까지는 계속 이용하실 수 있어요.')) return
+    setBusy('cancel')
+    try {
+      const res = await fetch('/api/payment/cancel', { method: 'POST' })
+      if (res.ok) {
+        await loadShop()
+        alert('해지가 예약되었습니다. 다음 결제일까지 계속 이용하실 수 있어요.')
+      } else {
+        alert('해지 처리에 실패했어요. 다시 시도해주세요.')
+      }
+    } catch (e) {
+      alert('오류가 발생했습니다.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
   async function handleDisconnect(key, name) {
     if (!confirm(`${name} 연동을 해제하시겠어요?\n해제 후 다시 연동할 수 있습니다.`)) return
     setBusy(key)
@@ -69,8 +90,30 @@ export default function SettingsPage() {
       <div style={{ flex:1, padding:'4px 18px 24px', overflowY:'auto' }}>
         <Card teal style={{ marginBottom:12 }}>
           <div style={{ fontSize:11, color:'#0F6E56', fontWeight:600, marginBottom:2 }}>현재 플랜</div>
-          <div style={{ fontSize:18, fontWeight:700, color:'#0F6E56' }}>스탠다드</div>
-          <div style={{ fontSize:11, color:'#085041' }}>월 59,000원</div>
+          <div style={{ fontSize:18, fontWeight:700, color:'#0F6E56' }}>{PLAN_LABEL[shop.plan] || '무료'}</div>
+          <div style={{ fontSize:11, color:'#085041' }}>월 {PLAN_PRICE[shop.plan] || '0'}원</div>
+          {shop.plan && shop.plan !== 'none' && (
+            <div style={{ fontSize:10, color:'#085041', marginTop:4 }}>
+              {shop.cancel_at_period_end
+                ? `해지 예약됨 · ${shop.next_billing_at ? new Date(shop.next_billing_at).toLocaleDateString('ko-KR') : ''}까지 이용 가능`
+                : shop.subscription_status === 'past_due'
+                  ? '⚠️ 결제 실패 — 카드 정보를 확인해주세요'
+                  : shop.next_billing_at ? `다음 결제일: ${new Date(shop.next_billing_at).toLocaleDateString('ko-KR')}` : ''}
+              {shop.card_company && ` · ${shop.card_company} ${shop.card_last4 ? '****' + shop.card_last4 : ''}`}
+            </div>
+          )}
+          <div style={{ display:'flex', gap:8, marginTop:10 }}>
+            <button onClick={() => router.push('/billing')}
+              style={{ flex:1, fontSize:11, color:'#fff', background:'#0F6E56', border:'none', borderRadius:8, padding:'7px 0', cursor:'pointer', fontWeight:600, fontFamily:'Noto Sans KR, sans-serif' }}>
+              {shop.plan && shop.plan !== 'none' ? '플랜 변경' : '구독 시작하기'}
+            </button>
+            {shop.plan && shop.plan !== 'none' && !shop.cancel_at_period_end && (
+              <button onClick={handleCancelSubscription} disabled={busy === 'cancel'}
+                style={{ flex:1, fontSize:11, color:'#0F6E56', background:'#fff', border:'1.5px solid #5DCAA5', borderRadius:8, padding:'7px 0', cursor:'pointer', fontWeight:600, fontFamily:'Noto Sans KR, sans-serif' }}>
+                {busy === 'cancel' ? '처리중...' : '구독 해지'}
+              </button>
+            )}
+          </div>
         </Card>
 
         <Card style={{ marginBottom:12 }}>
@@ -167,10 +210,11 @@ export default function SettingsPage() {
         <div style={{ background:'#F4F6F5', borderRadius:14, padding:'14px 16px', marginBottom:12 }}>
           <div style={{ fontSize:12, fontWeight:700, color:'#6B7875', marginBottom:8 }}>플랜 업그레이드</div>
           {[
-            { name:'프로', price:'129,000원/월', desc:'4K AI 영상 · 월 8개', color:'#534AB7' },
-            { name:'엔터프라이즈', price:'별도 문의', desc:'거래처 영상팀 + 전담 매니저', color:'#EF9F27' },
+            { key:'pro', name:'프로', price:'129,000원/월', desc:'4K AI 영상 · 월 8개', color:'#534AB7' },
+            { key:null, name:'엔터프라이즈', price:'별도 문의', desc:'거래처 영상팀 + 전담 매니저', color:'#EF9F27' },
           ].map(p => (
-            <div key={p.name} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 0', borderBottom:'1px solid #E6EAE8' }}>
+            <div key={p.name} onClick={() => p.key && router.push(`/billing?plan=${p.key}`)}
+              style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 0', borderBottom:'1px solid #E6EAE8', cursor: p.key ? 'pointer' : 'default' }}>
               <div>
                 <div style={{ fontSize:13, fontWeight:600, color:'#1A2421' }}>{p.name}</div>
                 <div style={{ fontSize:11, color:'#B0BAB6' }}>{p.desc}</div>

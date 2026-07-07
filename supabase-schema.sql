@@ -87,6 +87,32 @@ CREATE TABLE video_uploads (
 -- ALTER TABLE users ADD COLUMN IF NOT EXISTS line_channel_access_token TEXT;
 -- ALTER TABLE users ADD COLUMN IF NOT EXISTS line_bot_name TEXT;
 
+-- ── 토스페이먼츠 정기결제(빌링) 컬럼 + 결제이력 테이블 ──────────
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'none';
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'inactive';
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS toss_customer_key TEXT;
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS toss_billing_key TEXT;
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS card_company TEXT;
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS card_last4 TEXT;
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_started_at TIMESTAMPTZ;
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS next_billing_at TIMESTAMPTZ;
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS cancel_at_period_end BOOLEAN DEFAULT false;
+--
+-- CREATE TABLE IF NOT EXISTS payments (
+--   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+--   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+--   order_id TEXT UNIQUE NOT NULL,
+--   plan TEXT NOT NULL,
+--   amount INTEGER NOT NULL,
+--   status TEXT NOT NULL, -- paid | failed
+--   toss_payment_key TEXT,
+--   failure_reason TEXT,
+--   raw JSONB,
+--   created_at TIMESTAMPTZ DEFAULT now()
+-- );
+-- ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
+-- CREATE POLICY "service_role_payments" ON payments FOR ALL USING (true);
+
 -- 4. Row Level Security 설정 (보안)
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;

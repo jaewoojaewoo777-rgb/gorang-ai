@@ -38,6 +38,11 @@ const PLANS = [
     popular: true,
     features: ['베이직 플랜 포함', '영상 제작 월 12편', '3채널 동시 업로드', '악성리뷰 카카오 즉시 알림'],
   },
+  {
+    name: '프로',
+    price: '129,000',
+    features: ['스탠다드 플랜 포함', '4K AI 영상 · 월 8개', '우선 지원'],
+  },
 ]
 
 export default function LandingPage() {

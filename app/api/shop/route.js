@@ -42,6 +42,7 @@ export async function GET() {
   if (!data) return NextResponse.json({})
 
   return NextResponse.json({
+    id: data.id,
     shop_name: data.shop_name ?? null,
     shop_type: data.shop_type ?? null,
     shop_location: data.shop_location ?? null,
@@ -60,5 +61,11 @@ export async function GET() {
     facebook_connected: !!data.fb_page_id,
     line_connected: !!data.line_channel_access_token,
     brand_voice: data.brand_voice ?? null,
+    plan: data.plan ?? 'none',
+    subscription_status: data.subscription_status ?? 'inactive',
+    next_billing_at: data.next_billing_at ?? null,
+    cancel_at_period_end: data.cancel_at_period_end ?? false,
+    card_company: data.card_company ?? null,
+    card_last4: data.card_last4 ?? null,
   })
 }
