@@ -85,7 +85,8 @@ export default function ReviewPage() {
       const res = await fetch('/api/naver/poll', { method: 'POST' })
       const data = await res.json()
       if (data.success) {
-        setNaverPollResult(data.newReviews > 0 ? `✅ 새 리뷰 ${data.newReviews}개 감지 → 카톡 발송` : '✅ 새 리뷰 없음')
+        const more = data.hasMore ? ' (더 있어요, "네이버 새 리뷰 확인" 한 번 더 눌러주세요)' : ''
+        setNaverPollResult(data.newReviews > 0 ? `✅ 새 리뷰 ${data.newReviews}개 감지 → 카톡 발송${more}` : '✅ 새 리뷰 없음')
         if (data.newReviews > 0) await refreshReviews()
       } else {
         setNaverPollResult('❌ ' + (data.error || '오류'))

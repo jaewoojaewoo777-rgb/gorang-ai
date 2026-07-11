@@ -71,33 +71,51 @@ export async function POST() {
 
     const reviews = await getNaverReviews(cookies, conn.place_id, conn.booking_business_id)
 
-    let newCount = 0
-    const newReviews = []
+    // Vercel 함수 시간제한(55초) 안에 끝내야 해서 한 번에 처리할 리뷰 수를 제한한다.
+    // 리뷰 43개를 한 번에 스크래핑+AI분석하면 타임아웃(504) 남. 처음 연동 시 과거 리뷰가
+    // 많으면 "새 리뷰 확인"을 몇 번 더 눌러야 다 채워짐 — hasMore로 안내.
+    const BATCH_SIZE = 8
 
+    // DB에 이미 있는 건 미리 걸러서, 진짜 새 리뷰만 배치 크기만큼 추림
+    const notYetInDb = []
     for (const r of reviews) {
       const reviewId = `nv_${r.id}`
-
       const { data: existing } = await supabaseAdmin
         .from('reviews')
         .select('id')
         .eq('review_id', reviewId)
         .eq('user_id', session.userId)
         .maybeSingle()
+      if (!existing) notYetInDb.push(r)
+    }
 
-      if (existing) continue
+    const batch = notYetInDb.slice(0, BATCH_SIZE)
+    const hasMore = notYetInDb.length > BATCH_SIZE
 
-      let analysis
-      try {
-        analysis = await analyzeReview(r)
-      } catch {
-        analysis = {
-          type: '일반',
-          language: 'ko',
-          korean_translation: r.text || '',
-          korean_summary: (r.text || '').slice(0, 50),
-          suggested_replies: [],
+    // AI 분석은 리뷰별로 독립적이라 병렬로 돌려서 시간을 줄인다 (직렬로 하면 8개만 해도 20~30초)
+    const analyzed = await Promise.all(
+      batch.map(async (r) => {
+        let analysis
+        try {
+          analysis = await analyzeReview(r)
+        } catch {
+          analysis = {
+            type: '일반',
+            language: 'ko',
+            korean_translation: r.text || '',
+            korean_summary: (r.text || '').slice(0, 50),
+            suggested_replies: [],
+          }
         }
-      }
+        return { r, analysis }
+      })
+    )
+
+    let newCount = 0
+    const newReviews = []
+
+    for (const { r, analysis } of analyzed) {
+      const reviewId = `nv_${r.id}`
 
       const { error: insErr } = await supabaseAdmin.from('reviews').insert({
         user_id: session.userId,
@@ -164,7 +182,7 @@ export async function POST() {
       .update({ last_polled_at: new Date().toISOString() })
       .eq('user_id', session.userId)
 
-    return NextResponse.json({ success: true, newReviews: newCount, reviews: newReviews })
+    return NextResponse.json({ success: true, newReviews: newCount, reviews: newReviews, hasMore })
   } catch (err) {
     console.error('[naver/poll]', err)
     return NextResponse.json({ error: err.message }, { status: 500 })
