@@ -113,6 +113,33 @@ CREATE TABLE video_uploads (
 -- ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 -- CREATE POLICY "service_role_payments" ON payments FOR ALL USING (true);
 
+-- ── 네이버 플레이스 연동 (2026-07-11, 공식 API 미제공 → 세션쿠키 방식) ──
+-- ⚠️ 참고: reviews 테이블은 이 파일의 CREATE TABLE 정의(rating/review_text/has_reply/raw_data)와
+-- 실제 운영 DB(star_rating/comment/review_type/... , app/api/reviews/poll 등에서 사용)가 어긋나 있음.
+-- 이 파일이 오래돼서 실제 컬럼을 못 따라간 상태로 보임 — 네이버는 실제 운영 스키마(TripAdvisor 패턴,
+-- review_id에 'nv_' 접두사) 기준으로 맞춤. source 컬럼은 코드 어디서도 안 쓰여서 별도 추가 안 함.
+-- 연동코드(페어링) 발급용 컬럼
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS naver_pairing_code TEXT;
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS naver_pairing_code_expires_at TIMESTAMPTZ;
+-- CREATE TABLE IF NOT EXISTS naver_connections (
+--   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+--   user_id UUID REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+--   place_id TEXT,
+--   booking_business_id TEXT, -- placeId와 별개 값. 스마트플레이스 리뷰 URL에 둘 다 필요 (확장이 탭 URL에서 파싱)
+--   place_name TEXT,
+--   place_url TEXT,
+--   encrypted_session TEXT NOT NULL,  -- AES-256-GCM 암호화된 세션쿠키 JSON (lib/crypto.js)
+--   session_iv TEXT NOT NULL,
+--   session_auth_tag TEXT NOT NULL,
+--   session_captured_at TIMESTAMPTZ DEFAULT now(),
+--   session_status TEXT DEFAULT 'active', -- active | expired | revoked
+--   last_polled_at TIMESTAMPTZ,
+--   created_at TIMESTAMPTZ DEFAULT now(),
+--   updated_at TIMESTAMPTZ DEFAULT now()
+-- );
+-- ALTER TABLE naver_connections ENABLE ROW LEVEL SECURITY;
+-- CREATE POLICY "service_role_naver_connections" ON naver_connections FOR ALL USING (true);
+
 -- 4. Row Level Security 설정 (보안)
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;

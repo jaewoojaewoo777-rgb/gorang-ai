@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>고랑AI 네이버 연동</title>
+  <style>
+    body {
+      width: 320px;
+      font-family: -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+      padding: 16px;
+      color: #222;
+    }
+    h1 { font-size: 15px; margin: 0 0 8px; }
+    p { font-size: 12px; color: #666; line-height: 1.5; }
+    input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px;
+      font-size: 14px;
+      margin: 8px 0;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+    }
+    button {
+      width: 100%;
+      padding: 10px;
+      font-size: 14px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-top: 6px;
+    }
+    #connectBtn { background: #03c75a; color: #fff; font-weight: 600; }
+    #loginBtn { background: #f2f2f2; color: #333; }
+    #status { font-size: 12px; margin-top: 10px; white-space: pre-line; }
+    #status.ok { color: #03c75a; }
+    #status.error { color: #d33; }
+  </style>
+</head>
+<body>
+  <h1>고랑AI 네이버 연동</h1>
+  <p>
+    1) 네이버에 평소처럼 로그인 →
+    2) 스마트플레이스(new.smartplace.naver.com) "리뷰" 관리 페이지 탭을 열어두기 →
+    3) 고랑AI 설정 화면에서 발급받은 연동코드 입력 →
+    4) 연결하기 클릭 (비밀번호는 저장되지 않습니다)
+  </p>
+  <input id="pairingCode" placeholder="연동코드 6자리" maxlength="6" />
+  <button id="loginBtn">네이버 로그인 창 열기</button>
+  <button id="connectBtn">세션 연결하기</button>
+  <div id="status"></div>
+  <script src="popup.js"></script>
+</body>
+</html>

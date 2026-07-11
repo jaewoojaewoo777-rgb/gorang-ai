@@ -25,7 +25,7 @@ export default function SettingsPage() {
     { key: 'instagram',   icon: '📸', name: '인스타그램 · 페이스북', connected: !!shop.instagram_user_id,       reconnect: () => { window.location.href = '/api/auth/meta' } },
     { key: 'tiktok',      icon: '🎵', name: 'TikTok',               connected: !!shop.tiktok_open_id,          reconnect: () => { window.location.href = '/api/auth/tiktok' } },
     { key: 'line',        icon: '💚', name: 'LINE',                 connected: !!shop.line_connected,          reconnect: () => router.push('/connect') },
-    { key: 'tripadvisor', icon: '🦉', name: '트립어드바이저',        connected: !!shop.tripadvisor_location_id, reconnect: () => router.push('/connect') },
+    { key: 'naver',       icon: '📗', name: '네이버 플레이스',        connected: !!shop.naver_connected,         reconnect: () => router.push('/review') },
   ]
 
   async function saveVoice() {
@@ -90,8 +90,19 @@ export default function SettingsPage() {
       <div style={{ flex:1, padding:'4px 18px 24px', overflowY:'auto' }}>
         <Card teal style={{ marginBottom:12 }}>
           <div style={{ fontSize:11, color:'#0F6E56', fontWeight:600, marginBottom:2 }}>현재 플랜</div>
-          <div style={{ fontSize:18, fontWeight:700, color:'#0F6E56' }}>{PLAN_LABEL[shop.plan] || '무료'}</div>
-          <div style={{ fontSize:11, color:'#085041' }}>월 {PLAN_PRICE[shop.plan] || '0'}원</div>
+          {(!shop.plan || shop.plan === 'none') ? (
+            <>
+              <div style={{ fontSize:18, fontWeight:700, color:'#0F6E56' }}>창립멤버 무료</div>
+              <div style={{ fontSize:11, color:'#085041' }}>
+                정가 <span style={{ textDecoration:'line-through', opacity:.7 }}>59,000원</span> → <span style={{ fontWeight:700 }}>0원</span>/월
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize:18, fontWeight:700, color:'#0F6E56' }}>{PLAN_LABEL[shop.plan]}</div>
+              <div style={{ fontSize:11, color:'#085041' }}>월 {PLAN_PRICE[shop.plan]}원</div>
+            </>
+          )}
           {shop.plan && shop.plan !== 'none' && (
             <div style={{ fontSize:10, color:'#085041', marginTop:4 }}>
               {shop.cancel_at_period_end
@@ -102,18 +113,20 @@ export default function SettingsPage() {
               {shop.card_company && ` · ${shop.card_company} ${shop.card_last4 ? '****' + shop.card_last4 : ''}`}
             </div>
           )}
+          {shop.plan && shop.plan !== 'none' && (
           <div style={{ display:'flex', gap:8, marginTop:10 }}>
             <button onClick={() => router.push('/billing')}
               style={{ flex:1, fontSize:11, color:'#fff', background:'#0F6E56', border:'none', borderRadius:8, padding:'7px 0', cursor:'pointer', fontWeight:600, fontFamily:'Noto Sans KR, sans-serif' }}>
-              {shop.plan && shop.plan !== 'none' ? '플랜 변경' : '구독 시작하기'}
+              플랜 변경
             </button>
-            {shop.plan && shop.plan !== 'none' && !shop.cancel_at_period_end && (
+            {!shop.cancel_at_period_end && (
               <button onClick={handleCancelSubscription} disabled={busy === 'cancel'}
                 style={{ flex:1, fontSize:11, color:'#0F6E56', background:'#fff', border:'1.5px solid #5DCAA5', borderRadius:8, padding:'7px 0', cursor:'pointer', fontWeight:600, fontFamily:'Noto Sans KR, sans-serif' }}>
                 {busy === 'cancel' ? '처리중...' : '구독 해지'}
               </button>
             )}
           </div>
+          )}
         </Card>
 
         <Card style={{ marginBottom:12 }}>

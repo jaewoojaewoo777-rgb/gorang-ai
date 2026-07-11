@@ -9,7 +9,6 @@ const PLATFORM_FIELDS = {
   instagram: ['meta_access_token', 'meta_token_expiry', 'instagram_user_id', 'fb_page_id', 'fb_page_name', 'fb_page_access_token'],
   tiktok: ['tiktok_open_id', 'tiktok_access_token', 'tiktok_refresh_token', 'tiktok_display_name'],
   line: ['line_channel_access_token', 'line_bot_name'],
-  tripadvisor: ['tripadvisor_location_id', 'tripadvisor_location_name'],
 }
 
 export async function POST(request) {
@@ -19,6 +18,20 @@ export async function POST(request) {
   }
 
   const { platform } = await request.json().catch(() => ({}))
+
+  // 네이버는 users 테이블이 아니라 별도 naver_connections 테이블에 세션쿠키가 있어서 별도 처리
+  if (platform === 'naver') {
+    const { error } = await supabaseAdmin
+      .from('naver_connections')
+      .update({ session_status: 'revoked', updated_at: new Date().toISOString() })
+      .eq('user_id', session.userId)
+    if (error) {
+      console.error('naver disconnect error:', error)
+      return NextResponse.json({ error: '연동 해제 실패' }, { status: 500 })
+    }
+    return NextResponse.json({ ok: true })
+  }
+
   const cols = PLATFORM_FIELDS[platform]
   if (!cols) {
     return NextResponse.json({ error: '알 수 없는 플랫폼' }, { status: 400 })

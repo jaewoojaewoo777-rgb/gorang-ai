@@ -24,6 +24,7 @@ export default function HomePage() {
   const ytConnected  = !!shop.google_connected   // 구글 OAuth 완료 = YouTube + Google 비즈니스 사용 가능
   const igConnected  = !!shop.instagram_user_id
   const tiktokConnected = !!shop.tiktok_open_id
+  const naverConnected = !!shop.naver_connected
   const anyConnected = ytConnected || igConnected
 
   // 페이스북 실제 로고 (파란 라운드 사각형 + 흰 f)
@@ -60,8 +61,9 @@ export default function HomePage() {
       connected: tiktokConnected, review: false, href: '/connect?flow=tiktok',
     },
     {
-      icon: '🌍', name: 'TripAdvisor',
-      sub: '탭해서 연동하기', connected: false, review: false, href: '/connect?flow=tripadvisor',
+      icon: '📗', name: '네이버 플레이스',
+      sub: naverConnected ? '리뷰 자동 확인 연결됨' : '탭해서 연동하기',
+      connected: naverConnected, review: false, href: '/review',
     },
     {
       icon: '🇨🇳', name: 'RedNote',

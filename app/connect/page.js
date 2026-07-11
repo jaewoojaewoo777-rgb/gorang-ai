@@ -25,7 +25,7 @@ function ConnectContent() {
     tiktok_state:     '틱톡 연동 보안 검증에 실패했어요. 다시 시도해주세요.',
   }
 
-  // 채널별 연동 안내 가이드 (틱톡 · 트립어드바이저 · 레드노트)
+  // 채널별 연동 안내 가이드 (틱톡 · 레드노트)
   const GUIDES = {
     tiktok: {
       emoji: '🎵',
@@ -42,23 +42,6 @@ function ConnectContent() {
         { num: 3, title: '연동 완료', desc: '이제 영상 제작 후 틱톡에 바로 올릴 수 있어요.' },
       ],
       connect: { label: '🎵 틱톡 계정으로 연동하기', href: '/api/auth/tiktok' },
-    },
-    tripadvisor: {
-      emoji: '🌍',
-      title: '트립어드바이저 연동',
-      subtitle: '트립어드바이저 리뷰를 관리하세요',
-      infoTitle: 'ℹ️ 트립어드바이저 안내',
-      infoItems: [
-        '트립어드바이저는 공식 API가 제한적이에요.',
-        '비즈니스 관리 센터에서 직접 관리하거나,',
-        '고랑AI 팀이 리뷰 답변을 도와드려요.',
-      ],
-      steps: [
-        { num: 1, title: '비즈니스 관리 센터 접속', desc: '아래 버튼으로 트립어드바이저 오너 센터에 들어가세요.' },
-        { num: 2, title: '내 가게 페이지 확인/등록', desc: '아직 등록 전이면 가게를 먼저 등록해주세요.' },
-        { num: 3, title: '리뷰 답변 대행', desc: '외국어 리뷰 답변은 고랑AI 팀에 맡기실 수 있어요.' },
-      ],
-      link: { label: '트립어드바이저 비즈니스 관리 →', url: 'https://www.tripadvisor.com/Owners' },
     },
     rednote: {
       emoji: '🇨🇳',

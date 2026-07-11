@@ -32,11 +32,10 @@ export async function GET() {
 
   // 컬럼명을 나열하면 DB에 없는 컬럼이 하나라도 있을 때 쿼리 전체가 실패 → {} 반환됨.
   // 그래서 * 로 전부 가져온 뒤, 화면에 필요한 값만 골라서 응답 (토큰 등 민감정보는 제외).
-  const { data, error } = await supabaseAdmin
-    .from('users')
-    .select('*')
-    .eq('id', session.userId)
-    .single()
+  const [{ data, error }, { data: naverConn }] = await Promise.all([
+    supabaseAdmin.from('users').select('*').eq('id', session.userId).single(),
+    supabaseAdmin.from('naver_connections').select('session_status').eq('user_id', session.userId).maybeSingle(),
+  ])
 
   if (error) console.error('shop GET error:', error.message)
   if (!data) return NextResponse.json({})
@@ -54,12 +53,11 @@ export async function GET() {
     tiktok_open_id: data.tiktok_open_id ?? null,
     tiktok_display_name: data.tiktok_display_name ?? null,
     instagram_user_id: data.instagram_user_id ?? null,
-    tripadvisor_location_id: data.tripadvisor_location_id ?? null,
-    tripadvisor_location_name: data.tripadvisor_location_name ?? null,
     // 유튜브/구글 연동 여부는 토큰 보유 기준 (연동해제 시 토큰만 비우므로 로그인은 유지되고 상태만 풀림)
     google_connected: !!data.google_access_token,
     facebook_connected: !!data.fb_page_id,
     line_connected: !!data.line_channel_access_token,
+    naver_connected: naverConn?.session_status === 'active',
     brand_voice: data.brand_voice ?? null,
     plan: data.plan ?? 'none',
     subscription_status: data.subscription_status ?? 'inactive',

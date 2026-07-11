@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "고랑AI 네이버 연동",
+  "version": "1.0.0",
+  "description": "네이버 플레이스 리뷰 자동 관리를 위해 로그인 세션을 고랑AI에 안전하게 연결합니다. 비밀번호는 저장하지 않습니다.",
+  "permissions": ["cookies", "tabs", "storage"],
+  "host_permissions": [
+    "*://*.naver.com/*",
+    "https://gorang-ai.com/*",
+    "https://www.gorang-ai.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
