@@ -74,7 +74,7 @@ export async function POST() {
     // Vercel 함수 시간제한(55초) 안에 끝내야 해서 한 번에 처리할 리뷰 수를 제한한다.
     // 리뷰 43개를 한 번에 스크래핑+AI분석하면 타임아웃(504) 남. 처음 연동 시 과거 리뷰가
     // 많으면 "새 리뷰 확인"을 몇 번 더 눌러야 다 채워짐 — hasMore로 안내.
-    const BATCH_SIZE = 8
+    const BATCH_SIZE = 5
 
     // DB에 이미 있는 건 미리 걸러서, 진짜 새 리뷰만 배치 크기만큼 추림
     const notYetInDb = []
