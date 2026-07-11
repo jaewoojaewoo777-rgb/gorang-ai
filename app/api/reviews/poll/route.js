@@ -1,7 +1,6 @@
 // app/api/reviews/poll/route.js
 import { NextResponse } from 'next/server';
-import { getIronSession } from 'iron-session';
-import { cookies } from 'next/headers';
+import { getSession } from '../../../../lib/session';
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import { sendBadReviewAlert, sendReviewAlert } from '../../../../lib/solapi';
@@ -12,11 +11,6 @@ const supabase = createClient(
 );
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-const sessionOptions = {
-  password: process.env.SESSION_SECRET,
-  cookieName: 'gorang-session',
-};
 
 // GBP API로 리뷰 목록 가져오기
 async function fetchGBPReviews(accessToken, accountId, locationId) {
@@ -100,12 +94,12 @@ function starRatingToNumber(starRating) {
 
 export async function POST(req) {
   try {
-    const session = await getIronSession(cookies(), sessionOptions);
-    if (!session?.user?.id) {
+    const session = await getSession();
+    if (!session.userId) {
       return NextResponse.json({ error: '로그인 필요' }, { status: 401 });
     }
 
-    const userId = session.user.id;
+    const userId = session.userId;
 
     // 사용자 정보 + GBP 연결 정보 한번에 조회
     const [{ data: user }, { data: gbpConnection, error: connErr }] = await Promise.all([
@@ -235,31 +229,33 @@ export async function POST(req) {
   }
 }
 
-// GET: 저장된 리뷰 목록 조회
+// GET: 저장된 리뷰 목록 조회 (탭별 페이지네이션 — 최신순 3~5개씩 "더보기")
 export async function GET(req) {
   try {
-    const session = await getIronSession(cookies(), sessionOptions);
-    if (!session?.user?.id) {
+    const session = await getSession();
+    if (!session.userId) {
       return NextResponse.json({ error: '로그인 필요' }, { status: 401 });
     }
 
     const { searchParams } = new URL(req.url);
-    const type = searchParams.get('type');
-    const limit = parseInt(searchParams.get('limit') || '20');
+    const filter = searchParams.get('filter') || 'all'; // all | pending | done
+    const limit = parseInt(searchParams.get('limit') || '3');
+    const offset = parseInt(searchParams.get('offset') || '0');
 
     let query = supabase
       .from('reviews')
-      .select('*')
-      .eq('user_id', session.user.id)
-      .order('create_time', { ascending: false })
-      .limit(limit);
+      .select('*', { count: 'exact' })
+      .eq('user_id', session.userId)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
 
-    if (type) query = query.eq('review_type', type);
+    if (filter === 'pending') query = query.eq('reply_status', 'pending');
+    if (filter === 'done') query = query.eq('reply_status', 'replied');
 
-    const { data, error } = await query;
+    const { data, error, count } = await query;
     if (error) throw error;
 
-    return NextResponse.json({ reviews: data });
+    return NextResponse.json({ reviews: data, hasMore: offset + limit < (count ?? 0) });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

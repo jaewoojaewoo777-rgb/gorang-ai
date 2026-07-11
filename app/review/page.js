@@ -5,6 +5,7 @@ import { BottomNav, Badge, AiBox, LoadingDots, PrimaryBtn, GhostBtn } from '../.
 
 const LANG_FLAG = { en:'🇺🇸', zh:'🇨🇳', ko:'🇰🇷', ja:'🇯🇵' }
 const LANG_NAME = { en:'영어', zh:'중국어', ko:'한국어', ja:'일본어' }
+const PAGE_SIZE = 3
 
 // DB(reviews 테이블, snake_case) 행을 화면에서 쓰는 형태로 통일.
 // GBP/네이버 모두 poll 라우트에서 이 스키마(star_rating/comment/reply_status 등)로 저장됨.
@@ -21,10 +22,15 @@ function normalizeReview(r) {
   }
 }
 
+// UI 필터값(all/wait/done) → API 필터값(all/pending/done)
+const apiFilter = (f) => (f === 'wait' ? 'pending' : f === 'done' ? 'done' : 'all')
+
 export default function ReviewPage() {
   const router = useRouter()
   const [reviews, setReviews] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
   const [filter, setFilter] = useState('all')
   const [selected, setSelected] = useState(null)
   const [reply, setReply] = useState('')
@@ -38,14 +44,24 @@ export default function ReviewPage() {
   const [naverPairing, setNaverPairing] = useState(null)
   const [naverPairingLoading, setNaverPairingLoading] = useState(false)
 
-  const refreshReviews = async () => {
-    const d = await fetch('/api/reviews/poll').then(r => r.json())
-    setReviews((d.reviews || []).map(normalizeReview))
+  // 최신순 PAGE_SIZE개씩 — append=true면 "더보기"로 이어붙이고, false면 탭 전환/새로고침으로 첫 페이지부터
+  const loadPage = async (f, offset, append) => {
+    const d = await fetch(`/api/reviews/poll?filter=${apiFilter(f)}&limit=${PAGE_SIZE}&offset=${offset}`).then(r => r.json())
+    const normalized = (d.reviews || []).map(normalizeReview)
+    setReviews(prev => (append ? [...prev, ...normalized] : normalized))
+    setHasMore(!!d.hasMore)
   }
 
   useEffect(() => {
-    refreshReviews().finally(() => setLoading(false))
-  }, [])
+    setLoading(true)
+    loadPage(filter, 0, false).finally(() => setLoading(false))
+  }, [filter])
+
+  const handleLoadMore = async () => {
+    setLoadingMore(true)
+    await loadPage(filter, reviews.length, true)
+    setLoadingMore(false)
+  }
 
   const handlePoll = async () => {
     setPolling(true)
@@ -55,7 +71,7 @@ export default function ReviewPage() {
       const data = await res.json()
       if (data.success) {
         setPollResult(data.newReviews > 0 ? `✅ 새 리뷰 ${data.newReviews}개 감지 → 카톡 발송` : '✅ 새 리뷰 없음')
-        if (data.newReviews > 0) await refreshReviews()
+        if (data.newReviews > 0) await loadPage(filter, 0, false)
       } else {
         setPollResult('❌ ' + (data.error || '오류'))
       }
@@ -87,7 +103,7 @@ export default function ReviewPage() {
       if (data.success) {
         const more = data.hasMore ? ' (더 있어요, "네이버 새 리뷰 확인" 한 번 더 눌러주세요)' : ''
         setNaverPollResult(data.newReviews > 0 ? `✅ 새 리뷰 ${data.newReviews}개 감지 → 카톡 발송${more}` : '✅ 새 리뷰 없음')
-        if (data.newReviews > 0) await refreshReviews()
+        if (data.newReviews > 0) await loadPage(filter, 0, false)
       } else {
         setNaverPollResult('❌ ' + (data.error || '오류'))
       }
@@ -96,12 +112,6 @@ export default function ReviewPage() {
     }
     setNaverPolling(false)
   }
-
-  const filtered = reviews.filter(r => {
-    if (filter === 'wait') return !r.hasReply
-    if (filter === 'done') return r.hasReply
-    return true
-  })
 
   const openReview = async (r) => {
     setSelected(r)
@@ -130,8 +140,8 @@ export default function ReviewPage() {
     const data = await res.json()
     setPublishing(false)
     if (data.ok) {
-      setReviews(prev => prev.map(r => r.reviewId === selected.reviewId ? { ...r, hasReply: true } : r))
       setSelected(null)
+      await loadPage(filter, 0, false) // 답변완료로 바뀌면 대기/완료 탭 소속이 달라지므로 첫 페이지부터 새로
       alert('✅ 답변이 게시됐어요!')
     } else {
       alert('답변 게시 실패: ' + (data.detail || data.error))
@@ -240,12 +250,12 @@ export default function ReviewPage() {
 
       <div style={{ flex:1, padding:'4px 18px 16px', overflowY:'auto' }}>
         {loading && <div style={{ textAlign:'center', padding:40, color:'#B0BAB6' }}>리뷰 불러오는 중...</div>}
-        {!loading && filtered.length === 0 && (
+        {!loading && reviews.length === 0 && (
           <div style={{ textAlign:'center', padding:40, color:'#B0BAB6' }}>
-            {reviews.length === 0 ? '위 버튼으로 새 리뷰를 확인하면\n여기에 나타나요' : '해당하는 리뷰가 없어요'}
+            {filter === 'all' ? '위 버튼으로 새 리뷰를 확인하면\n여기에 나타나요' : '해당하는 리뷰가 없어요'}
           </div>
         )}
-        {filtered.map(r => (
+        {reviews.map(r => (
           <div key={r.reviewId} onClick={() => !r.hasReply && openReview(r)}
             style={{ padding:'10px 0', borderBottom:'1.5px solid #F4F6F5', cursor: r.hasReply ? 'default' : 'pointer' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:3 }}>
@@ -259,6 +269,12 @@ export default function ReviewPage() {
             {!r.hasReply && <div style={{ fontSize:11, color:'#1D9E75', fontWeight:600 }}>탭해서 AI 답변 생성 →</div>}
           </div>
         ))}
+        {!loading && hasMore && (
+          <button onClick={handleLoadMore} disabled={loadingMore}
+            style={{ width:'100%', marginTop:10, padding:10, borderRadius:10, border:'1.5px solid #E6EAE8', background:'#fff', color:'#6B7875', fontSize:12, fontWeight:600, cursor: loadingMore?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+            {loadingMore ? '불러오는 중...' : '더보기'}
+          </button>
+        )}
       </div>
       <BottomNav />
     </div>
