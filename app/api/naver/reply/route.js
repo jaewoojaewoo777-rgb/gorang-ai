@@ -32,8 +32,8 @@ export async function POST(request) {
     const result = await postNaverReply(cookies, conn.place_id, conn.booking_business_id, naverReviewId, replyText)
 
     await supabaseAdmin.from('reviews').update({
-      reply_status: 'replied',
-      existing_reply: replyText,
+      has_reply: true,
+      reply_text: replyText,
     }).match({ user_id: session.userId, review_id: reviewId })
 
     return NextResponse.json({ ok: true, result })

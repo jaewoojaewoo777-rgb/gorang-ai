@@ -8,7 +8,7 @@ const LANG_NAME = { en:'영어', zh:'중국어', ko:'한국어', ja:'일본어' 
 const PAGE_SIZE = 3
 
 // DB(reviews 테이블, snake_case) 행을 화면에서 쓰는 형태로 통일.
-// GBP/네이버 모두 poll 라우트에서 이 스키마(star_rating/comment/reply_status 등)로 저장됨.
+// GBP/네이버 모두 poll 라우트에서 이 스키마(star_rating/comment/has_reply 등)로 저장됨.
 function normalizeReview(r) {
   return {
     reviewId: r.review_id,
@@ -16,7 +16,7 @@ function normalizeReview(r) {
     starRating: typeof r.star_rating === 'number' ? r.star_rating : 5,
     reviewer: { displayName: r.reviewer_name || '익명' },
     detectedLang: r.language || 'ko',
-    hasReply: r.reply_status === 'replied',
+    hasReply: !!r.has_reply,
     koreanSummary: r.korean_summary,
     suggestedReplies: r.suggested_replies,
   }

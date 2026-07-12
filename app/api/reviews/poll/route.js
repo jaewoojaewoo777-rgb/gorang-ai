@@ -156,13 +156,14 @@ export async function POST(req) {
         create_time: review.createTime,
         review_type: analysis.type,
         language: analysis.language,
-        korean_translation: analysis.korean_translation,
         korean_summary: analysis.korean_summary,
         suggested_replies: analysis.suggested_replies,
-        reply_status: review.reviewReply ? 'replied' : 'pending',
-        existing_reply: review.reviewReply?.comment || null,
+        has_reply: !!review.reviewReply,
+        reply_text: review.reviewReply?.comment || null,
         notified: false,
       });
+
+      if (insertErr) console.error('[reviews/poll] 리뷰 저장 실패:', insertErr.message);
 
       if (!insertErr) {
         newCount++;
@@ -249,8 +250,8 @@ export async function GET(req) {
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
-    if (filter === 'pending') query = query.eq('reply_status', 'pending');
-    if (filter === 'done') query = query.eq('reply_status', 'replied');
+    if (filter === 'pending') query = query.eq('has_reply', false);
+    if (filter === 'done') query = query.eq('has_reply', true);
 
     const { data, error, count } = await query;
     if (error) throw error;

@@ -126,13 +126,14 @@ export async function POST() {
         create_time: r.date || null,
         review_type: analysis.type,
         language: analysis.language,
-        korean_translation: analysis.korean_translation,
         korean_summary: analysis.korean_summary,
         suggested_replies: analysis.suggested_replies,
-        reply_status: r.hasReply ? 'replied' : 'pending',
-        existing_reply: r.existingReply || null,
+        has_reply: r.hasReply || false,
+        reply_text: r.existingReply || null,
         notified: false,
       })
+
+      if (insErr) console.error('[naver/poll] 리뷰 저장 실패:', insErr.message)
 
       if (!insErr) {
         newCount++
