@@ -170,7 +170,8 @@ export async function POST() {
                 summary: analysis.korean_summary,
                 reply1: reply1 || '답변을 준비 중입니다.',
               })
-            } else if (analysis.type === '주의') {
+            } else {
+              // 주의/일반 모두 같은 템플릿(악성과는 다른 톤) — 일반도 새 리뷰는 알림 원함(2026-07-13)
               await sendReviewAlert({
                 to: user.phone,
                 shopName: shopLabel,

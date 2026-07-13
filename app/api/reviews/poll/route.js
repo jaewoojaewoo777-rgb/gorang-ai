@@ -191,7 +191,8 @@ export async function POST(req) {
                 summary: analysis.korean_summary,
                 reply1: reply1 || '답변을 준비 중입니다.',
               });
-            } else if (analysis.type === '주의') {
+            } else {
+              // 주의/일반 모두 같은 템플릿(악성과는 다른 톤) — 일반도 새 리뷰는 알림 원함(2026-07-13)
               await sendReviewAlert({
                 to: user.phone,
                 shopName,
@@ -201,7 +202,6 @@ export async function POST(req) {
                 reply1: reply1 || '답변을 준비 중입니다.',
               });
             }
-            // 일반(긍정) 리뷰는 알림 없음
 
             // 알림 발송 완료 표시
             await supabase.from('reviews').update({ notified: true })
