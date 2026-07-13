@@ -11,6 +11,15 @@ export const maxDuration = 55
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
+// 네이버 방문일 표기("2026. 6. 14(일)")는 create_time(timestamptz) 컬럼에 그대로 넣으면
+// Postgres가 파싱 못 해서 22007 에러남 → ISO 날짜로 변환. 매칭 안 되면 null(컬럼이 NOT NULL 아님).
+function parseNaverDate(text) {
+  const match = (text || '').match(/(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})/)
+  if (!match) return null
+  const [, y, m, d] = match
+  return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+}
+
 async function analyzeReview(review) {
   const prompt = `당신은 제주도 소상공인(카페, 펜션, 맛집)의 네이버 플레이스 리뷰 관리를 돕는 전문가입니다.
 
@@ -125,7 +134,7 @@ export async function POST() {
         reviewer_name: r.author || '익명',
         star_rating: r.rating ?? null,
         comment: r.text || '',
-        create_time: r.date || null,
+        create_time: parseNaverDate(r.date),
         review_type: analysis.type,
         language: analysis.language,
         korean_summary: analysis.korean_summary,
