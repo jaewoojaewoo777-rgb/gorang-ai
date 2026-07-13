@@ -70,6 +70,7 @@ export async function POST() {
     )
 
     const reviews = await getNaverReviews(cookies, conn.place_id, conn.booking_business_id)
+    console.log('[naver/poll] 워커에서 받은 리뷰 개수:', reviews.length, JSON.stringify(reviews.map(r => r.id)))
 
     // Vercel 함수 시간제한(55초) 안에 끝내야 해서 한 번에 처리할 리뷰 수를 제한한다.
     // 리뷰 43개를 한 번에 스크래핑+AI분석하면 타임아웃(504) 남. 처음 연동 시 과거 리뷰가
@@ -91,6 +92,7 @@ export async function POST() {
 
     const batch = notYetInDb.slice(0, BATCH_SIZE)
     const hasMore = notYetInDb.length > BATCH_SIZE
+    console.log('[naver/poll] DB에 아직 없는 리뷰:', notYetInDb.length, '중 이번 배치:', batch.length)
 
     // AI 분석은 리뷰별로 독립적이라 병렬로 돌려서 시간을 줄인다 (직렬로 하면 8개만 해도 20~30초)
     const analyzed = await Promise.all(
@@ -133,7 +135,7 @@ export async function POST() {
         notified: false,
       })
 
-      if (insErr) console.error('[naver/poll] 리뷰 저장 실패:', insErr.message)
+      if (insErr) console.error('[naver/poll] 리뷰 저장 실패:', reviewId, JSON.stringify(insErr))
 
       if (!insErr) {
         newCount++
