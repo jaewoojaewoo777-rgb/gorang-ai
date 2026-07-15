@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getSession } from '../../../../lib/session'
 import { supabaseAdmin } from '../../../../lib/db'
 import { decrypt } from '../../../../lib/crypto'
+import { DEFAULT_WORKER_URL } from '../../../../lib/naver'
 
 // 임시 진단용 — 리뷰 카드 셀렉터가 실제 화면과 안 맞을 때 워커의 /debug를 호출해
 // 원본 HTML 구조를 확인하기 위함. 셀렉터 확정되면 이 라우트도 지워도 됨.
@@ -24,7 +25,7 @@ export async function GET() {
       decrypt({ encrypted: conn.encrypted_session, iv: conn.session_iv, authTag: conn.session_auth_tag })
     )
 
-    const base = process.env.NAVER_WORKER_URL.replace(/\/$/, '')
+    const base = (process.env.NAVER_WORKER_URL || DEFAULT_WORKER_URL).replace(/\/$/, '')
     const res = await fetch(`${base}/debug`, {
       method: 'POST',
       headers: {
