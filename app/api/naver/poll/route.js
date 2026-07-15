@@ -163,7 +163,13 @@ export async function POST() {
           suggestedReplies: analysis.suggested_replies,
         })
 
-        if (user?.phone && user?.kakao_notify !== false) {
+        // 연동(session_captured_at) 이전에 이미 있던 리뷰는 지금 막 달린 게 아니라
+        // 과거 리뷰를 처음 긁어오는 백필이므로 카톡 스팸 방지 위해 알림 생략(2026-07-15).
+        // 방문일이 연동 시점 이후인 것만 "진짜 새 리뷰"로 취급.
+        const reviewDate = parseNaverDate(r.date)
+        const isBackfill = conn.session_captured_at && (!reviewDate || new Date(reviewDate) < new Date(conn.session_captured_at))
+
+        if (!isBackfill && user?.phone && user?.kakao_notify !== false) {
           try {
             const shopLabel = `[네이버] ${user.shop_name || '내 가게'}`
             const [reply1] = analysis.suggested_replies
