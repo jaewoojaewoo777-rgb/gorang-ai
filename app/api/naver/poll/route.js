@@ -78,8 +78,14 @@ export async function POST() {
       decrypt({ encrypted: conn.encrypted_session, iv: conn.session_iv, authTag: conn.session_auth_tag })
     )
 
-    const reviews = await getNaverReviews(cookies, conn.place_id, conn.booking_business_id)
-    console.log('[naver/poll] 워커에서 받은 리뷰 개수:', reviews.length, JSON.stringify(reviews.map(r => r.id)))
+    const { count: knownCount } = await supabaseAdmin
+      .from('reviews')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', session.userId)
+      .like('review_id', 'nv_%')
+
+    const reviews = await getNaverReviews(cookies, conn.place_id, conn.booking_business_id, knownCount || 0)
+    console.log('[naver/poll] 워커에서 받은 리뷰 개수:', reviews.length, 'DB 기존 네이버 리뷰:', knownCount, JSON.stringify(reviews.map(r => r.id)))
 
     // Vercel 함수 시간제한(55초) 안에 끝내야 해서 한 번에 처리할 리뷰 수를 제한한다.
     // 리뷰 43개를 한 번에 스크래핑+AI분석하면 타임아웃(504) 남. 처음 연동 시 과거 리뷰가
