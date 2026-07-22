@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { BottomNav, Badge, AiBox, LoadingDots, PrimaryBtn, GhostBtn } from '../../components/ui'
 
@@ -43,6 +43,8 @@ export default function ReviewPage() {
   const [naverPollResult, setNaverPollResult] = useState(null)
   const [naverPairing, setNaverPairing] = useState(null)
   const [naverPairingLoading, setNaverPairingLoading] = useState(false)
+  const [naverConnected, setNaverConnected] = useState(false)
+  const [naverExhausted, setNaverExhausted] = useState(false) // 네이버쪽 남은 과거 리뷰를 다 긁어왔으면 true(자동 재시도 중단용)
 
   // 최신순 PAGE_SIZE개씩 — append=true면 "더보기"로 이어붙이고, false면 탭 전환/새로고침으로 첫 페이지부터
   const loadPage = async (f, offset, append) => {
@@ -57,11 +59,40 @@ export default function ReviewPage() {
     loadPage(filter, 0, false).finally(() => setLoading(false))
   }, [filter])
 
+  // 네이버 연동 여부 확인 — 연동 안 된 계정은 스크롤해도 네이버 자동조회를 시도하지 않기 위함
+  useEffect(() => {
+    fetch('/api/shop').then(r => r.json()).then(d => setNaverConnected(!!d.naver_connected)).catch(() => {})
+  }, [])
+
   const handleLoadMore = async () => {
     setLoadingMore(true)
     await loadPage(filter, reviews.length, true)
     setLoadingMore(false)
   }
+
+  // 로컬 DB 더보기가 바닥나면(hasMore=false) 네이버 연동 계정에 한해 자동으로 "네이버 새 리뷰 확인"까지
+  // 이어서 호출한다 — 사용자가 매번 버튼을 눌러가며 배치(5개씩)를 당겨오지 않아도 스크롤만으로
+  // 과거 리뷰(최대 43개)를 끝까지 불러오게. 네이버 쪽 실제로 더 없으면(hasMore:false) naverExhausted로
+  // 표시해 반복 스크래핑 호출을 멈춘다.
+  const canFetchMore = hasMore || (naverConnected && !naverExhausted)
+  const handleFetchMore = () => (hasMore ? handleLoadMore() : handleNaverPoll())
+
+  // 리스트 맨 아래 sentinel이 스크롤 컨테이너(scrollRef) 안에서 보이면 자동으로 다음 페이지 로드
+  // (1~5 보고 있었으면 6~10 이어서). 버튼 클릭 없이도 스크롤만으로 더보기가 동작하게 하되,
+  // 기존 버튼도 로딩 표시 겸 폴백으로 남겨둠. root를 뷰포트가 아니라 이 스크롤 컨테이너로
+  // 지정해야 리스트 자체가 overflow:auto인 중첩 스크롤에서도 안정적으로 감지됨.
+  const scrollRef = useRef(null)
+  const sentinelRef = useRef(null)
+  useEffect(() => {
+    if (loading || !canFetchMore) return
+    const node = sentinelRef.current
+    if (!node) return
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && !loadingMore && !naverPolling) handleFetchMore()
+    }, { root: scrollRef.current, rootMargin: '200px' })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [loading, canFetchMore, hasMore, loadingMore, naverPolling, reviews.length, filter])
 
   const handlePoll = async () => {
     setPolling(true)
@@ -101,14 +132,17 @@ export default function ReviewPage() {
       const res = await fetch('/api/naver/poll', { method: 'POST' })
       const data = await res.json()
       if (data.success) {
-        const more = data.hasMore ? ' (더 있어요, "네이버 새 리뷰 확인" 한 번 더 눌러주세요)' : ''
-        setNaverPollResult(data.newReviews > 0 ? `✅ 새 리뷰 ${data.newReviews}개 감지 → 카톡 발송${more}` : '✅ 새 리뷰 없음')
-        if (data.newReviews > 0) await loadPage(filter, 0, false)
+        setNaverPollResult(data.newReviews > 0 ? `✅ 새 리뷰 ${data.newReviews}개 감지 → 카톡 발송` : '✅ 새 리뷰 없음')
+        // offset 0부터 다시 채우면 이미 스크롤로 불러온 페이지가 사라져 보이니, 이어붙이기로 유지
+        if (data.newReviews > 0) await loadPage(filter, reviews.length, true)
+        setNaverExhausted(!data.hasMore)
       } else {
         setNaverPollResult('❌ ' + (data.error || '오류'))
+        setNaverExhausted(true) // 연동 안 됨/세션만료 등 — 스크롤마다 재시도하지 않게 멈춤
       }
     } catch {
       setNaverPollResult('❌ 네트워크 오류')
+      setNaverExhausted(true)
     }
     setNaverPolling(false)
   }
@@ -226,7 +260,7 @@ export default function ReviewPage() {
             style={{ padding:'6px 14px', borderRadius:20, border:'1.5px solid #03C75A', background: naverPairingLoading?'#E8F9EE':'#03C75A', color: naverPairingLoading?'#0B8A3E':'#fff', fontSize:12, fontWeight:600, cursor: naverPairingLoading?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
             {naverPairingLoading ? '발급 중...' : '📗 네이버 연동하기'}
           </button>
-          <button onClick={handleNaverPoll} disabled={naverPolling}
+          <button onClick={() => { setNaverExhausted(false); handleNaverPoll() }} disabled={naverPolling}
             style={{ padding:'6px 14px', borderRadius:20, border:'1.5px solid #03C75A', background: naverPolling?'#E8F9EE':'#fff', color:'#0B8A3E', fontSize:12, fontWeight:600, cursor: naverPolling?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
             {naverPolling ? '확인 중...' : '📗 네이버 새 리뷰 확인'}
           </button>
@@ -248,7 +282,7 @@ export default function ReviewPage() {
         </div>
       </div>
 
-      <div style={{ flex:1, padding:'4px 18px 16px', overflowY:'auto' }}>
+      <div ref={scrollRef} style={{ flex:1, padding:'4px 18px 16px', overflowY:'auto' }}>
         {loading && <div style={{ textAlign:'center', padding:40, color:'#B0BAB6' }}>리뷰 불러오는 중...</div>}
         {!loading && reviews.length === 0 && (
           <div style={{ textAlign:'center', padding:40, color:'#B0BAB6' }}>
@@ -269,11 +303,14 @@ export default function ReviewPage() {
             {!r.hasReply && <div style={{ fontSize:11, color:'#1D9E75', fontWeight:600 }}>탭해서 AI 답변 생성 →</div>}
           </div>
         ))}
-        {!loading && hasMore && (
-          <button onClick={handleLoadMore} disabled={loadingMore}
-            style={{ width:'100%', marginTop:10, padding:10, borderRadius:10, border:'1.5px solid #E6EAE8', background:'#fff', color:'#6B7875', fontSize:12, fontWeight:600, cursor: loadingMore?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-            {loadingMore ? '불러오는 중...' : '더보기'}
-          </button>
+        {!loading && canFetchMore && (
+          <>
+            <div ref={sentinelRef} style={{ height:1 }} />
+            <button onClick={handleFetchMore} disabled={loadingMore || naverPolling}
+              style={{ width:'100%', marginTop:10, padding:10, borderRadius:10, border:'1.5px solid #E6EAE8', background:'#fff', color:'#6B7875', fontSize:12, fontWeight:600, cursor: (loadingMore||naverPolling)?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+              {loadingMore || naverPolling ? '불러오는 중...' : (hasMore ? '더보기' : '네이버에서 더 가져오기')}
+            </button>
+          </>
         )}
       </div>
       <BottomNav />

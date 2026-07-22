@@ -243,10 +243,15 @@ export async function GET(req) {
     const limit = parseInt(searchParams.get('limit') || '3');
     const offset = parseInt(searchParams.get('offset') || '0');
 
+    // create_time(리뷰 실제 작성/방문일) 기준 정렬 — DB 저장 시각(created_at)으로 정렬하면
+    // 네이버 백필로 방금 막 긁어온(실제로는 더 오래된) 리뷰가 항상 맨 위로 튀어올라, 스크롤로
+    // 이미 보고 있던 리뷰를 아래로 밀어내는 문제가 있었음(2026-07-22). create_time이 비어있는
+    // 극히 일부 행은 nullsFirst:false로 맨 뒤로 보내고, 같은 날짜끼리는 created_at으로 2차 정렬.
     let query = supabase
       .from('reviews')
       .select('*', { count: 'exact' })
       .eq('user_id', session.userId)
+      .order('create_time', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
