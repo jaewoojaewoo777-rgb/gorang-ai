@@ -247,12 +247,20 @@ export async function GET(req) {
     // 네이버 백필로 방금 막 긁어온(실제로는 더 오래된) 리뷰가 항상 맨 위로 튀어올라, 스크롤로
     // 이미 보고 있던 리뷰를 아래로 밀어내는 문제가 있었음(2026-07-22). create_time이 비어있는
     // 극히 일부 행은 nullsFirst:false로 맨 뒤로 보내고, 같은 날짜끼리는 created_at으로 2차 정렬.
+    //
+    // (2026-07-23 버그 수정) 네이버 리뷰는 날짜가 일 단위라 같은 날짜인 행이 흔하고,
+    // 같은 배치에서 한꺼번에 insert된 행은 created_at까지 동일할 수 있어서 두 기준 모두
+    // 동률(tie)이 나면 Postgres가 range(offset,limit) 결과를 호출마다 다르게/겹치게 줄 수
+    // 있음(완전히 고유한 정렬 기준이 없으면 페이지네이션이 안정적이지 않음) — 그래서
+    // "더보기"를 아무리 눌러도 전체 개수(count)는 맞는데 화면엔 똑같은 6~7개만 반복돼서
+    // 보이는 현상이 있었음. 완전히 고유한 id를 마지막 타이브레이커로 추가해 순서를 고정.
     let query = supabase
       .from('reviews')
       .select('*', { count: 'exact' })
       .eq('user_id', session.userId)
       .order('create_time', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (filter === 'pending') query = query.eq('has_reply', false);
