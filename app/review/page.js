@@ -44,6 +44,7 @@ export default function ReviewPage() {
   const [naverPairing, setNaverPairing] = useState(null)
   const [naverPairingLoading, setNaverPairingLoading] = useState(false)
   const [naverExhausted, setNaverExhausted] = useState(false) // 네이버쪽 남은 과거 리뷰를 다 긁어왔거나 에러났으면 true(재시도 중단용)
+  const [totalCount, setTotalCount] = useState(null) // DB에 실제 저장된 전체 개수(디버깅 표시용, 2026-07-23)
 
   // 최신순 PAGE_SIZE개씩 — append=true면 "더보기"로 이어붙이고, false면 탭 전환/새로고침으로 첫 페이지부터
   // 반환값(count/hasMore)은 handleFetchMore가 React state 갱신을 기다리지 않고 바로 다음 루프
@@ -53,6 +54,7 @@ export default function ReviewPage() {
     const normalized = (d.reviews || []).map(normalizeReview)
     setReviews(prev => (append ? [...prev, ...normalized] : normalized))
     setHasMore(!!d.hasMore)
+    setTotalCount(typeof d.total === 'number' ? d.total : null)
     return { count: normalized.length, hasMore: !!d.hasMore }
   }
 
@@ -255,7 +257,10 @@ export default function ReviewPage() {
     <div style={{ flex:1, display:'flex', flexDirection:'column' }}>
       <div style={{ padding:'18px 18px 10px' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
-          <div style={{ fontSize:18, fontWeight:700, color:'#1A2421' }}>리뷰 관리</div>
+          <div style={{ fontSize:18, fontWeight:700, color:'#1A2421' }}>
+            리뷰 관리
+            {totalCount !== null && <span style={{ fontSize:12, fontWeight:500, color:'#B0BAB6', marginLeft:8 }}>{reviews.length}/{totalCount}개 표시 중</span>}
+          </div>
           <button onClick={handlePoll} disabled={polling}
             style={{ padding:'6px 14px', borderRadius:20, border:'1.5px solid #1D9E75', background: polling?'#E1F5EE':'#1D9E75', color: polling?'#0F6E56':'#fff', fontSize:12, fontWeight:600, cursor: polling?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
             {polling ? '확인 중...' : '🔔 구글 새 리뷰 확인'}

@@ -261,7 +261,7 @@ export async function GET(req) {
     const { data, error, count } = await query;
     if (error) throw error;
 
-    return NextResponse.json({ reviews: data, hasMore: offset + limit < (count ?? 0) });
+    return NextResponse.json({ reviews: data, hasMore: offset + limit < (count ?? 0), total: count ?? 0 });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
