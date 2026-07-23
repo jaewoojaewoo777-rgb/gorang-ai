@@ -43,8 +43,7 @@ export default function ReviewPage() {
   const [naverPollResult, setNaverPollResult] = useState(null)
   const [naverPairing, setNaverPairing] = useState(null)
   const [naverPairingLoading, setNaverPairingLoading] = useState(false)
-  const [naverConnected, setNaverConnected] = useState(false)
-  const [naverExhausted, setNaverExhausted] = useState(false) // 네이버쪽 남은 과거 리뷰를 다 긁어왔으면 true(자동 재시도 중단용)
+  const [naverExhausted, setNaverExhausted] = useState(false) // 네이버쪽 남은 과거 리뷰를 다 긁어왔거나 에러났으면 true(재시도 중단용)
 
   // 최신순 PAGE_SIZE개씩 — append=true면 "더보기"로 이어붙이고, false면 탭 전환/새로고침으로 첫 페이지부터
   const loadPage = async (f, offset, append) => {
@@ -59,22 +58,18 @@ export default function ReviewPage() {
     loadPage(filter, 0, false).finally(() => setLoading(false))
   }, [filter])
 
-  // 네이버 연동 여부 확인 — 연동 안 된 계정은 스크롤해도 네이버 자동조회를 시도하지 않기 위함
-  useEffect(() => {
-    fetch('/api/shop').then(r => r.json()).then(d => setNaverConnected(!!d.naver_connected)).catch(() => {})
-  }, [])
-
   const handleLoadMore = async () => {
     setLoadingMore(true)
     await loadPage(filter, reviews.length, true)
     setLoadingMore(false)
   }
 
-  // "더보기" 버튼 클릭 시: 로컬 DB에 더 있으면 그것부터, 다 보여줬으면(hasMore=false) 네이버 연동
-  // 계정에 한해 "네이버 새 리뷰 확인"까지 이어서 호출 — 버튼을 계속 누르면 로컬→원격→로컬… 순으로
-  // 43개 과거 리뷰를 끝까지 당겨올 수 있음. 스크롤 자동로드는 아래로 안 내려가고 사라지는 느낌이라
-  // 제거하고, 버튼을 누르는 만큼만 명시적으로 불러오게 함(2026-07-22).
-  const canFetchMore = hasMore || (naverConnected && !naverExhausted)
+  // "더보기" 버튼 클릭 시: 로컬 DB에 더 있으면 그것부터, 다 보여줬으면(hasMore=false) "네이버 새 리뷰
+  // 확인"까지 이어서 호출 — 버튼을 계속 누르면 로컬→원격→로컬… 순으로 43개 과거 리뷰를 끝까지
+  // 당겨올 수 있음. 네이버 연동 여부는 별도로 미리 확인하지 않고 handleNaverPoll이 실패 응답을
+  // 받으면 그때 naverExhausted를 세워 멈춤 — 별도 확인 API(/api/shop) 실패 시 조용히 버튼 자체가
+  // 사라지는 문제가 있었어서(2026-07-23) 그 의존성을 없앰.
+  const canFetchMore = hasMore || !naverExhausted
   const handleFetchMore = () => (hasMore ? handleLoadMore() : handleNaverPoll())
 
   const handlePoll = async () => {
