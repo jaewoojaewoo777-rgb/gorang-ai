@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { BottomNav, Badge, AiBox, LoadingDots, PrimaryBtn, GhostBtn } from '../../components/ui'
 
@@ -122,6 +122,17 @@ export default function ReviewPage() {
     }
   }
   const canFetchMore = hasMore || !naverExhausted
+
+  // "더보기" 진행 중엔 리뷰 개수가 늘어나도 화면(스크롤 위치)이 그대로라 사용자 눈엔 안 늘어나는
+  // 것처럼 보인다는 피드백(2026-07-23) — 리스트가 늘어날 때마다 스크롤을 맨 아래로 자동으로
+  // 내려서 방금 추가된 리뷰가 바로 보이게 함. loadingMore가 끝난 뒤(사용자가 직접 스크롤해서
+  // 읽는 중)에는 강제로 끌어내리지 않도록 loadingMore일 때만 동작.
+  const listScrollRef = useRef(null)
+  useEffect(() => {
+    if (loadingMore && listScrollRef.current) {
+      listScrollRef.current.scrollTop = listScrollRef.current.scrollHeight
+    }
+  }, [reviews.length, loadingMore])
 
   const handlePoll = async () => {
     setPolling(true)
@@ -299,7 +310,7 @@ export default function ReviewPage() {
         </div>
       </div>
 
-      <div style={{ flex:1, padding:'4px 18px 16px', overflowY:'auto' }}>
+      <div ref={listScrollRef} style={{ flex:1, padding:'4px 18px 16px', overflowY:'auto' }}>
         {loading && <div style={{ textAlign:'center', padding:40, color:'#B0BAB6' }}>리뷰 불러오는 중...</div>}
         {!loading && reviews.length === 0 && (
           <div style={{ textAlign:'center', padding:40, color:'#B0BAB6' }}>
