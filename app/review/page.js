@@ -46,11 +46,14 @@ export default function ReviewPage() {
   const [naverExhausted, setNaverExhausted] = useState(false) // 네이버쪽 남은 과거 리뷰를 다 긁어왔거나 에러났으면 true(재시도 중단용)
 
   // 최신순 PAGE_SIZE개씩 — append=true면 "더보기"로 이어붙이고, false면 탭 전환/새로고침으로 첫 페이지부터
+  // 반환값(count/hasMore)은 handleFetchMore가 React state 갱신을 기다리지 않고 바로 다음 루프
+  // 여부를 판단할 수 있게 하기 위함 — state는 비동기라 연속 호출 중엔 최신값을 못 믿음.
   const loadPage = async (f, offset, append) => {
     const d = await fetch(`/api/reviews/poll?filter=${apiFilter(f)}&limit=${PAGE_SIZE}&offset=${offset}`).then(r => r.json())
     const normalized = (d.reviews || []).map(normalizeReview)
     setReviews(prev => (append ? [...prev, ...normalized] : normalized))
     setHasMore(!!d.hasMore)
+    return { count: normalized.length, hasMore: !!d.hasMore }
   }
 
   useEffect(() => {
@@ -58,19 +61,60 @@ export default function ReviewPage() {
     loadPage(filter, 0, false).finally(() => setLoading(false))
   }, [filter])
 
-  const handleLoadMore = async () => {
-    setLoadingMore(true)
-    await loadPage(filter, reviews.length, true)
-    setLoadingMore(false)
+  // 네이버 원격조회 한 번 실행 + 결과 반영. offset을 파라미터로 받는 이유: 이 함수가 루프 안에서
+  // 반복 호출될 때, 클로저에 잡힌 reviews.length는 React state 갱신을 기다리지 않아 매번 같은
+  // (오래된) 값이라 offset이 안 늘어나는 버그가 있었음 — 호출부(handleFetchMore)가 직접 계산해
+  // 넘겨주는 값을 써야 매 배치마다 실제로 다음 구간을 이어붙일 수 있음.
+  const pollNaverOnce = async (offset) => {
+    setNaverPollResult(null)
+    try {
+      const res = await fetch('/api/naver/poll', { method: 'POST' })
+      const data = await res.json()
+      if (data.success) {
+        setNaverPollResult(data.newReviews > 0 ? `✅ 새 리뷰 ${data.newReviews}개 감지 → 카톡 발송` : '✅ 새 리뷰 없음')
+        let count = 0
+        if (data.newReviews > 0) {
+          const page = await loadPage(filter, offset, true)
+          count = page.count
+        }
+        setNaverExhausted(!data.hasMore)
+        return { success: true, hasMore: !!data.hasMore, count }
+      }
+      setNaverPollResult('❌ ' + (data.error || '오류'))
+      setNaverExhausted(true)
+      return { success: false, hasMore: false, count: 0 }
+    } catch {
+      setNaverPollResult('❌ 네트워크 오류')
+      setNaverExhausted(true)
+      return { success: false, hasMore: false, count: 0 }
+    }
   }
 
-  // "더보기" 버튼 클릭 시: 로컬 DB에 더 있으면 그것부터, 다 보여줬으면(hasMore=false) "네이버 새 리뷰
-  // 확인"까지 이어서 호출 — 버튼을 계속 누르면 로컬→원격→로컬… 순으로 43개 과거 리뷰를 끝까지
-  // 당겨올 수 있음. 네이버 연동 여부는 별도로 미리 확인하지 않고 handleNaverPoll이 실패 응답을
-  // 받으면 그때 naverExhausted를 세워 멈춤 — 별도 확인 API(/api/shop) 실패 시 조용히 버튼 자체가
-  // 사라지는 문제가 있었어서(2026-07-23) 그 의존성을 없앰.
+  // "더보기" 버튼 클릭 한 번으로 로컬 DB → (바닥나면) 네이버 원격조회를 번갈아 계속 이어서
+  // 끝까지(43개) 당겨온다. 매번 버튼을 다시 눌러야 하는 방식이 헷갈린다는 피드백(2026-07-23)
+  // 반영 — 사용자가 여러 번 클릭할 필요 없이 한 번으로 전부 받아오되, 각 배치가 끝날 때마다
+  // 화면이 실시간으로 늘어나는 걸 보여줘서 멈춘 게 아니라 계속 진행 중임을 알 수 있게 함.
+  // 무한루프 방지용 안전장치로 최대 반복 횟수를 넉넉히(40회) 둠. offset은 클로저의 reviews.length가
+  // 아니라 이 함수 안에서 직접 누적한 지역변수를 써서 매 배치 진행 상황을 정확히 반영한다.
+  const handleFetchMore = async () => {
+    setLoadingMore(true)
+    try {
+      let offset = reviews.length
+      let more = { hasMore: true }
+      for (let i = 0; i < 40 && more.hasMore; i++) {
+        more = await loadPage(filter, offset, true)
+        offset += more.count
+      }
+      let naverMore = { success: true, hasMore: true, count: 0 }
+      for (let i = 0; i < 40 && naverMore.success && naverMore.hasMore; i++) {
+        naverMore = await pollNaverOnce(offset)
+        offset += naverMore.count
+      }
+    } finally {
+      setLoadingMore(false)
+    }
+  }
   const canFetchMore = hasMore || !naverExhausted
-  const handleFetchMore = () => (hasMore ? handleLoadMore() : handleNaverPoll())
 
   const handlePoll = async () => {
     setPolling(true)
@@ -103,25 +147,10 @@ export default function ReviewPage() {
     setNaverPairingLoading(false)
   }
 
+  // 상단 "네이버 새 리뷰 확인" 버튼 전용 — pollNaverOnce 한 번만 실행하고 로딩 상태 표시
   const handleNaverPoll = async () => {
     setNaverPolling(true)
-    setNaverPollResult(null)
-    try {
-      const res = await fetch('/api/naver/poll', { method: 'POST' })
-      const data = await res.json()
-      if (data.success) {
-        setNaverPollResult(data.newReviews > 0 ? `✅ 새 리뷰 ${data.newReviews}개 감지 → 카톡 발송` : '✅ 새 리뷰 없음')
-        // offset 0부터 다시 채우면 이미 스크롤로 불러온 페이지가 사라져 보이니, 이어붙이기로 유지
-        if (data.newReviews > 0) await loadPage(filter, reviews.length, true)
-        setNaverExhausted(!data.hasMore)
-      } else {
-        setNaverPollResult('❌ ' + (data.error || '오류'))
-        setNaverExhausted(true) // 연동 안 됨/세션만료 등 — 스크롤마다 재시도하지 않게 멈춤
-      }
-    } catch {
-      setNaverPollResult('❌ 네트워크 오류')
-      setNaverExhausted(true)
-    }
+    await pollNaverOnce(reviews.length)
     setNaverPolling(false)
   }
 
@@ -284,7 +313,7 @@ export default function ReviewPage() {
         {!loading && canFetchMore && (
           <button onClick={handleFetchMore} disabled={loadingMore || naverPolling}
             style={{ width:'100%', marginTop:10, padding:10, borderRadius:10, border:'1.5px solid #E6EAE8', background:'#fff', color:'#6B7875', fontSize:12, fontWeight:600, cursor: (loadingMore||naverPolling)?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-            {loadingMore || naverPolling ? '불러오는 중...' : (hasMore ? '더보기' : '네이버에서 더 가져오기')}
+            {loadingMore || naverPolling ? `불러오는 중... (${reviews.length}개)` : '더보기'}
           </button>
         )}
       </div>
