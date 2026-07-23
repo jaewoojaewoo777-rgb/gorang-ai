@@ -74,10 +74,15 @@ export default function ReviewPage() {
       const data = await res.json()
       if (data.success) {
         setNaverPollResult(data.newReviews > 0 ? `✅ 새 리뷰 ${data.newReviews}개 감지 → 카톡 발송` : '✅ 새 리뷰 없음')
+        // 방금 저장된 data.newReviews건 전부를 화면에도 반영 — loadPage 한 번은 PAGE_SIZE(3)만
+        // 가져오는데 네이버는 한 배치에 최대 5건까지 저장하므로, 한 번 호출로는 다 못 가져와서
+        // 저장은 됐는데 화면엔 안 뜨는 리뷰가 배치마다 쌓이던 버그(2026-07-23) — newReviews만큼
+        // 다 불러올 때까지 반복 호출하도록 수정.
         let count = 0
-        if (data.newReviews > 0) {
-          const page = await loadPage(filter, offset, true)
-          count = page.count
+        while (count < data.newReviews) {
+          const page = await loadPage(filter, offset + count, true)
+          if (page.count === 0) break // 방어적 — 무한루프 방지
+          count += page.count
         }
         setNaverExhausted(!data.hasMore)
         return { success: true, hasMore: !!data.hasMore, count }
