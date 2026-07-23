@@ -271,72 +271,78 @@ export default function ReviewPage() {
 
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column' }}>
-      <div style={{ padding:'18px 18px 10px' }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
-          <div style={{ fontSize:18, fontWeight:700, color:'#1A2421' }}>
-            리뷰 관리
-            {totalCount !== null && <span style={{ fontSize:12, fontWeight:500, color:'#B0BAB6', marginLeft:8 }}>{reviews.length}/{totalCount}개 표시 중</span>}
-          </div>
-          <button onClick={handlePoll} disabled={polling}
-            style={{ padding:'6px 14px', borderRadius:20, border:'1.5px solid #1D9E75', background: polling?'#E1F5EE':'#1D9E75', color: polling?'#0F6E56':'#fff', fontSize:12, fontWeight:600, cursor: polling?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-            {polling ? '확인 중...' : '🔔 구글 새 리뷰 확인'}
-          </button>
-        </div>
-        {pollResult && <div style={{ fontSize:12, color: pollResult.startsWith('✅')?'#0F6E56':'#E53E3E', background: pollResult.startsWith('✅')?'#E1F5EE':'#FFF5F5', padding:'6px 12px', borderRadius:8, marginBottom:4 }}>{pollResult}</div>}
-        <div style={{ display:'flex', gap:6, marginBottom:6 }}>
-          <button onClick={handleGetNaverCode} disabled={naverPairingLoading}
-            style={{ padding:'6px 14px', borderRadius:20, border:'1.5px solid #03C75A', background: naverPairingLoading?'#E8F9EE':'#03C75A', color: naverPairingLoading?'#0B8A3E':'#fff', fontSize:12, fontWeight:600, cursor: naverPairingLoading?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-            {naverPairingLoading ? '발급 중...' : '📗 네이버 연동하기'}
-          </button>
-          <button onClick={() => { setNaverExhausted(false); handleNaverPoll() }} disabled={naverPolling}
-            style={{ padding:'6px 14px', borderRadius:20, border:'1.5px solid #03C75A', background: naverPolling?'#E8F9EE':'#fff', color:'#0B8A3E', fontSize:12, fontWeight:600, cursor: naverPolling?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-            {naverPolling ? '확인 중...' : '📗 네이버 새 리뷰 확인'}
-          </button>
-        </div>
-        {naverPairing && (
-          <div style={{ fontSize:12, color:'#1A2421', background:'#E8F9EE', border:'1.5px solid #03C75A', borderRadius:10, padding:'10px 12px', marginBottom:6, lineHeight:1.7 }}>
-            <b>연동코드: {naverPairing.code}</b> (5분 내 사용)<br/>
-            1) 크롬에 &apos;고랑AI 네이버 연동&apos; 확장 설치 → 2) 네이버 로그인 → 3) 확장 아이콘 클릭 후 위 코드 입력
-          </div>
-        )}
-        {naverPollResult && <div style={{ fontSize:12, color: naverPollResult.startsWith('✅')?'#0F6E56':'#E53E3E', background: naverPollResult.startsWith('✅')?'#E1F5EE':'#FFF5F5', padding:'6px 12px', borderRadius:8, marginBottom:4 }}>{naverPollResult}</div>}
-        <div style={{ display:'flex', gap:5 }}>
-          {[{v:'all',l:'전체'},{v:'wait',l:'대기'},{v:'done',l:'완료'}].map(f => (
-            <button key={f.v} onClick={() => setFilter(f.v)}
-              style={{ padding:'4px 10px', borderRadius:20, border:`1.5px solid ${filter===f.v?'#5DCAA5':'#E6EAE8'}`, background: filter===f.v?'#E1F5EE':'#fff', color: filter===f.v?'#0F6E56':'#6B7875', fontSize:11, fontWeight:500, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-              {f.l}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div ref={listScrollRef} style={{ flex:1, padding:'4px 18px 16px', overflowY:'auto' }}>
-        {loading && <div style={{ textAlign:'center', padding:40, color:'#B0BAB6' }}>리뷰 불러오는 중...</div>}
-        {!loading && reviews.length === 0 && (
-          <div style={{ textAlign:'center', padding:40, color:'#B0BAB6' }}>
-            {filter === 'all' ? '위 버튼으로 새 리뷰를 확인하면\n여기에 나타나요' : '해당하는 리뷰가 없어요'}
-          </div>
-        )}
-        {reviews.map(r => (
-          <div key={r.reviewId} onClick={() => !r.hasReply && openReview(r)}
-            style={{ padding:'10px 0', borderBottom:'1.5px solid #F4F6F5', cursor: r.hasReply ? 'default' : 'pointer' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:3 }}>
-              <div style={{ fontSize:12, fontWeight:600, color:'#1A2421' }}>
-                {r.reviewId?.startsWith('nv_') ? '📗' : (LANG_FLAG[r.detectedLang] || '🌐')} {r.reviewer?.displayName || '익명'}
-              </div>
-              <Badge type={r.hasReply ? 'done' : 'wait'}>{r.hasReply ? '✓ 답변 완료' : '● 답변 대기'}</Badge>
+      {/* 헤더까지 리스트와 한 스크롤 영역에 포함 — 예전엔 헤더/리스트가 분리돼 있어서 스크롤
+          가능한 영역이 좁아 보였음(2026-07-23 피드백: "화면 자체를 길게 늘려서 첫페이지처럼
+          내려가게"). 랜딩페이지(app/page.js)와 같은 패턴으로 통일 — 헤더는 sticky로 위에
+          붙어있고, 그 아래로 전체가 하나로 쭉 스크롤됨. */}
+      <div ref={listScrollRef} style={{ flex:1, overflowY:'auto' }}>
+        <div style={{ position:'sticky', top:0, zIndex:10, background:'#fff', padding:'18px 18px 10px', borderBottom:'1px solid #F0F2F1' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+            <div style={{ fontSize:18, fontWeight:700, color:'#1A2421' }}>
+              리뷰 관리
+              {totalCount !== null && <span style={{ fontSize:12, fontWeight:500, color:'#B0BAB6', marginLeft:8 }}>{reviews.length}/{totalCount}개 표시 중</span>}
             </div>
-            <div style={{ fontSize:12, color:'#EF9F27', marginBottom:3 }}>{'★'.repeat(r.starRating || 5)}</div>
-            <div style={{ fontSize:12, color:'#6B7875', lineHeight:1.5, marginBottom:3 }}>{r.comment?.slice(0,80)}{r.comment?.length > 80 ? '...' : ''}</div>
-            {!r.hasReply && <div style={{ fontSize:11, color:'#1D9E75', fontWeight:600 }}>탭해서 AI 답변 생성 →</div>}
+            <button onClick={handlePoll} disabled={polling}
+              style={{ padding:'6px 14px', borderRadius:20, border:'1.5px solid #1D9E75', background: polling?'#E1F5EE':'#1D9E75', color: polling?'#0F6E56':'#fff', fontSize:12, fontWeight:600, cursor: polling?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+              {polling ? '확인 중...' : '🔔 구글 새 리뷰 확인'}
+            </button>
           </div>
-        ))}
-        {!loading && canFetchMore && (
-          <button onClick={handleFetchMore} disabled={loadingMore || naverPolling}
-            style={{ width:'100%', marginTop:10, padding:10, borderRadius:10, border:'1.5px solid #E6EAE8', background:'#fff', color:'#6B7875', fontSize:12, fontWeight:600, cursor: (loadingMore||naverPolling)?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-            {loadingMore || naverPolling ? `불러오는 중... (${reviews.length}개)` : '더보기'}
-          </button>
-        )}
+          {pollResult && <div style={{ fontSize:12, color: pollResult.startsWith('✅')?'#0F6E56':'#E53E3E', background: pollResult.startsWith('✅')?'#E1F5EE':'#FFF5F5', padding:'6px 12px', borderRadius:8, marginBottom:4 }}>{pollResult}</div>}
+          <div style={{ display:'flex', gap:6, marginBottom:6 }}>
+            <button onClick={handleGetNaverCode} disabled={naverPairingLoading}
+              style={{ padding:'6px 14px', borderRadius:20, border:'1.5px solid #03C75A', background: naverPairingLoading?'#E8F9EE':'#03C75A', color: naverPairingLoading?'#0B8A3E':'#fff', fontSize:12, fontWeight:600, cursor: naverPairingLoading?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+              {naverPairingLoading ? '발급 중...' : '📗 네이버 연동하기'}
+            </button>
+            <button onClick={() => { setNaverExhausted(false); handleNaverPoll() }} disabled={naverPolling}
+              style={{ padding:'6px 14px', borderRadius:20, border:'1.5px solid #03C75A', background: naverPolling?'#E8F9EE':'#fff', color:'#0B8A3E', fontSize:12, fontWeight:600, cursor: naverPolling?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+              {naverPolling ? '확인 중...' : '📗 네이버 새 리뷰 확인'}
+            </button>
+          </div>
+          {naverPairing && (
+            <div style={{ fontSize:12, color:'#1A2421', background:'#E8F9EE', border:'1.5px solid #03C75A', borderRadius:10, padding:'10px 12px', marginBottom:6, lineHeight:1.7 }}>
+              <b>연동코드: {naverPairing.code}</b> (5분 내 사용)<br/>
+              1) 크롬에 &apos;고랑AI 네이버 연동&apos; 확장 설치 → 2) 네이버 로그인 → 3) 확장 아이콘 클릭 후 위 코드 입력
+            </div>
+          )}
+          {naverPollResult && <div style={{ fontSize:12, color: naverPollResult.startsWith('✅')?'#0F6E56':'#E53E3E', background: naverPollResult.startsWith('✅')?'#E1F5EE':'#FFF5F5', padding:'6px 12px', borderRadius:8, marginBottom:4 }}>{naverPollResult}</div>}
+          <div style={{ display:'flex', gap:5 }}>
+            {[{v:'all',l:'전체'},{v:'wait',l:'대기'},{v:'done',l:'완료'}].map(f => (
+              <button key={f.v} onClick={() => setFilter(f.v)}
+                style={{ padding:'4px 10px', borderRadius:20, border:`1.5px solid ${filter===f.v?'#5DCAA5':'#E6EAE8'}`, background: filter===f.v?'#E1F5EE':'#fff', color: filter===f.v?'#0F6E56':'#6B7875', fontSize:11, fontWeight:500, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                {f.l}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ padding:'4px 18px 16px' }}>
+          {loading && <div style={{ textAlign:'center', padding:40, color:'#B0BAB6' }}>리뷰 불러오는 중...</div>}
+          {!loading && reviews.length === 0 && (
+            <div style={{ textAlign:'center', padding:40, color:'#B0BAB6' }}>
+              {filter === 'all' ? '위 버튼으로 새 리뷰를 확인하면\n여기에 나타나요' : '해당하는 리뷰가 없어요'}
+            </div>
+          )}
+          {reviews.map(r => (
+            <div key={r.reviewId} onClick={() => !r.hasReply && openReview(r)}
+              style={{ padding:'10px 0', borderBottom:'1.5px solid #F4F6F5', cursor: r.hasReply ? 'default' : 'pointer' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:3 }}>
+                <div style={{ fontSize:12, fontWeight:600, color:'#1A2421' }}>
+                  {r.reviewId?.startsWith('nv_') ? '📗' : (LANG_FLAG[r.detectedLang] || '🌐')} {r.reviewer?.displayName || '익명'}
+                </div>
+                <Badge type={r.hasReply ? 'done' : 'wait'}>{r.hasReply ? '✓ 답변 완료' : '● 답변 대기'}</Badge>
+              </div>
+              <div style={{ fontSize:12, color:'#EF9F27', marginBottom:3 }}>{'★'.repeat(r.starRating || 5)}</div>
+              <div style={{ fontSize:12, color:'#6B7875', lineHeight:1.5, marginBottom:3 }}>{r.comment?.slice(0,80)}{r.comment?.length > 80 ? '...' : ''}</div>
+              {!r.hasReply && <div style={{ fontSize:11, color:'#1D9E75', fontWeight:600 }}>탭해서 AI 답변 생성 →</div>}
+            </div>
+          ))}
+          {!loading && canFetchMore && (
+            <button onClick={handleFetchMore} disabled={loadingMore || naverPolling}
+              style={{ width:'100%', marginTop:10, padding:10, borderRadius:10, border:'1.5px solid #E6EAE8', background:'#fff', color:'#6B7875', fontSize:12, fontWeight:600, cursor: (loadingMore||naverPolling)?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+              {loadingMore || naverPolling ? `불러오는 중... (${reviews.length}개)` : '더보기'}
+            </button>
+          )}
+        </div>
       </div>
       <BottomNav />
     </div>
